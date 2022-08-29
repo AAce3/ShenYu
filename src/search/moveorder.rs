@@ -54,6 +54,22 @@ pub struct MovePicker<'a> {
     generated_killer_2: ShortMove,
 }
 
+impl MovePicker<'_> {
+    pub fn new(board: &Board, orderdata: &OrderData, ply: u8) -> MovePicker {
+        Self {
+            board,
+            orderdata,
+            ply,
+            curr_idx: 0,
+            curr_scorelist: ScoreList::new(),
+            curr_mvlist: MoveList::new(),
+            curr_stage: Stage::TTMove,
+            ttmove: 0,
+            generated_killer_1: 0,
+            generated_killer_2: 0,
+        }
+    }
+}
 impl Iterator for MovePicker<'_> {
     type Item = Move;
 
@@ -111,8 +127,18 @@ impl Iterator for MovePicker<'_> {
                 if self.generated_killer_1 == 0 {
                     self.generated_killer_1 = killers[0];
                     // check for legality of killer
+                    if self.board.check_legality(self.generated_killer_1) {
+                        return Some(self.generated_killer_1.to_longmove(self.board));
+                    } else {
+                        return self.next();
+                    }
                 } else if self.generated_killer_2 == 0 {
                     self.generated_killer_2 = killers[1];
+                    if self.board.check_legality(self.generated_killer_2) {
+                        return Some(self.generated_killer_2.to_longmove(self.board));
+                    } else {
+                        return self.next();
+                    }
                     // verify killers
                 } else {
                     self.curr_stage = Stage::LCaptures;
@@ -199,7 +225,7 @@ impl Board {
         if is_correct_color && piecemoved != NOPIECE {
             match piecemoved {
                 PAWN => {
-                    if action.move_type() == PROMOTION && action.move_to() >> 3 != 7{
+                    if action.move_type() == PROMOTION && action.move_to() >> 3 != 7 {
                         return false;
                     }
                     if self.is_empty(action.move_to()) {
