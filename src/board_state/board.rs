@@ -14,7 +14,7 @@ pub struct Board {
     pub tomove: Color,
     pub zobrist_key: ZobristKey,
     pub passant_square: Option<Square>,
-    pub castling_rights: u8,
+    pub castling_rights: u8, // KQkq
     pub halfmove_clock: u8,
     pub evaluator: IncrementalEval,
 }
