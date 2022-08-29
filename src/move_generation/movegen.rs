@@ -382,11 +382,10 @@ impl Board {
                         let mut newpassant = Move::new_move(from, to, PASSANT);
                         newpassant.set_moving_piece(PAWN);
                         let newb = self.do_move(newpassant);
-                        let currmove = self.tomove;
-                        let currking = self.get_pieces(KING, currmove).lsb();
-                        if !newb.is_attacked(currking, newb.tomove) {
+                        if !newb.incheck(self.tomove){
                             list.push(newpassant);
                         }
+                        
                     }
                 }
             }
@@ -507,6 +506,11 @@ impl Board {
         pinmask
     }
 
+    #[inline]
+    pub fn incheck(&self, color: Color) -> bool{
+        let relevant_king_square = self.get_pieces(KING, color).lsb();
+        self.is_attacked(relevant_king_square, !color)
+    }
     #[inline]
     pub fn is_attacked(&self, square: Square, attacking_color: Color) -> bool {
         let occupancy = self.get_occupancy();
