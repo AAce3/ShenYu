@@ -1,11 +1,14 @@
 use crate::{
     board_state::{
+        bitboard::{Bitboard, BB},
         board::Board,
-        typedefs::{Color, Piece, Square, BISHOP, KING, KNIGHT, NOPIECE, PAWN, QUEEN, ROOK},
+        typedefs::{BISHOP, KING, KNIGHT, NOPIECE, PAWN, QUEEN, ROOK},
     },
     move_generation::{
         action::{Action, Move, ShortMove},
-        makemove::PASSANT,
+        magic::{bishop_attacks, rook_attacks},
+        makemove::{C1, C8, CASTLE, G1, G8, PASSANT},
+        masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
         movelist::{MoveList, ScoreList},
     },
 };
@@ -189,6 +192,7 @@ impl Iterator for MovePicker<'_> {
 }
 
 impl Board {
+    // checks for pseudolegal move
     fn check_legality(&self, action: ShortMove) -> bool {
         let piecemoved = self.get_at_square(action.move_from());
         let is_correct_color = self.is_color(action.move_from(), self.tomove);
@@ -201,30 +205,56 @@ impl Board {
                         } else {
                             let diff = action.move_from() as i8 - action.move_to() as i8;
                             const DIFFS: [i8; 2] = [-8, 8];
-                            let doublepush = DIFFS[self.tomove as usize] * 2;
-                            if doublepush && action.move_to() >> 3 == 3 {
-                                // doublepush and on 4th rank
-                                return true;
-                            } else if DIFFS[self.tomove as usize] == diff {
-                                return true;
-                            }
+                            let doublepush = DIFFS[self.tomove as usize] * 2 == diff;
+                            return doublepush && action.move_to() >> 3 == 3
+                                || DIFFS[self.tomove as usize] == diff;
                         }
+                    } else if self.is_color(action.move_to(), !self.tomove) {
+                        let captures =
+                            PAWN_CAPTURES[self.tomove as usize][action.move_from() as usize];
+                        let newbb = Bitboard::new(action.move_to());
+                        return captures & newbb != 0;
                     }
-                    todo!()
                 }
                 KNIGHT => {
-                    todo!()
+                    let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
+                    return KNIGHT_ATTACKS[action.move_from() as usize] & bbmove != 0;
                 }
                 BISHOP => {
-                    todo!()
+                    let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
+                    return bishop_attacks(action.move_from(), self.get_occupancy()) & bbmove != 0;
                 }
                 ROOK => {
-                    todo!()
+                    let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
+                    return rook_attacks(action.move_from(), self.get_occupancy()) & bbmove != 0;
                 }
                 QUEEN => {
-                    todo!()
+                    let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
+                    let atks = rook_attacks(action.move_from(), self.get_occupancy())
+                        | bishop_attacks(action.move_from(), self.get_occupancy());
+                    return atks & bbmove != 0;
                 }
                 KING => {
+                    let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
+                    if action.move_type() == CASTLE {
+                        const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
+                        const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
+                        const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
+                        const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
+                        let (relevant_castleright) = match action.move_to() {
+                            G1 => self.castling_rights >> 3,
+                            C1 => (self.castling_rights >> 2) & 1,
+                            G8 => (self.castling_rights >> 1) & 1,
+                            C8 => (self.castling_rights) & 1,
+                            _ => panic!("Bad castle"),
+                        };
+                        
+
+                    } else {
+                        let atks = KING_ATTACKS[action.move_from() as usize];
+                        return atks & bbmove != 0;
+                    }
+
                     todo!()
                 }
                 _ => return false,
@@ -245,7 +275,7 @@ impl Board {
         if attackerval > victimval {
             self.see(action)
         } else {
-            attackerval - victimval / 16
+            attackerval - victimval / 2
         }
     }
 }
