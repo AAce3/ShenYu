@@ -7,7 +7,7 @@ use crate::{
     move_generation::{
         action::{Action, Move, ShortMove},
         magic::{bishop_attacks, rook_attacks},
-        makemove::{C1, C8, CASTLE, G1, G8, PASSANT},
+        makemove::{C1, C8, CASTLE, G1, G8, PASSANT, PROMOTION},
         masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
         movelist::{MoveList, ScoreList},
     },
@@ -193,12 +193,15 @@ impl Iterator for MovePicker<'_> {
 
 impl Board {
     // checks for pseudolegal move
-    fn check_legality(&self, action: ShortMove) -> bool {
+    pub fn check_legality(&self, action: ShortMove) -> bool {
         let piecemoved = self.get_at_square(action.move_from());
         let is_correct_color = self.is_color(action.move_from(), self.tomove);
         if is_correct_color && piecemoved != NOPIECE {
             match piecemoved {
                 PAWN => {
+                    if action.move_type() == PROMOTION && action.move_to() >> 3 != 7{
+                        return false;
+                    }
                     if self.is_empty(action.move_to()) {
                         if action.move_type() == PASSANT {
                             return self.passant_square.is_some_and(|&x| x == action.move_to());
@@ -237,25 +240,29 @@ impl Board {
                 KING => {
                     let bbmove = Bitboard::new(action.move_to()) & !self[self.tomove];
                     if action.move_type() == CASTLE {
-                        const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
-                        const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
-                        const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
-                        const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
-                        let (relevant_castleright) = match action.move_to() {
-                            G1 => self.castling_rights >> 3,
-                            C1 => (self.castling_rights >> 2) & 1,
-                            G8 => (self.castling_rights >> 1) & 1,
-                            C8 => (self.castling_rights) & 1,
-                            _ => panic!("Bad castle"),
+                        let (relevant_castleright, blockmask, checkmask) = match action.move_to() {
+                            G1 => (self.castling_rights >> 3, 0x60, 0x70),
+                            C1 => ((self.castling_rights >> 2) & 1, 0xe, 0x1c),
+                            G8 => (
+                                (self.castling_rights >> 1) & 1,
+                                0x6000000000000000,
+                                0x7000000000000000,
+                            ),
+                            C8 => (
+                                (self.castling_rights) & 1,
+                                0xe00000000000000,
+                                0x1c00000000000000,
+                            ),
+                            _ => return false,
                         };
-                        
-
+                        let atkmask = self.generate_atk_mask(!self.tomove, self.get_occupancy());
+                        return atkmask & checkmask == 0
+                            && self.get_occupancy() & blockmask == 0
+                            && relevant_castleright != 0;
                     } else {
                         let atks = KING_ATTACKS[action.move_from() as usize];
                         return atks & bbmove != 0;
                     }
-
-                    todo!()
                 }
                 _ => return false,
             }
