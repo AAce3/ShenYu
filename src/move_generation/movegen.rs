@@ -45,7 +45,7 @@ impl Board {
             let kingsqr = kingbb.lsb();
             let moves = KING_ATTACKS[kingsqr as usize] & !atk_mask;
             let mut captures = moves & capture_squares;
-            let mut quiets = moves & quiet_sqrs;
+            let mut quiet_moves = moves & quiet_sqrs;
             while captures != 0 {
                 let to = captures.pop_lsb();
                 let mut action = Move::new_move(kingsqr, to, NORMAL);
@@ -54,14 +54,15 @@ impl Board {
                 list.push(action);
             }
 
-            while quiets != 0 {
-                let to = quiets.pop_lsb();
+            while quiet_moves != 0 {
+                let to = quiet_moves.pop_lsb();
                 let mut action = Move::new_move(kingsqr, to, NORMAL);
                 action.set_moving_piece(KING);
                 list.push(action);
             }
 
             // generate castling moves
+            if quiets{
             let rights = self.get_castlerights(self.tomove);
             let is_kingside_legal = rights & 0b10 != 0;
             let is_queenside_legal = rights & 1 != 0;
@@ -86,7 +87,7 @@ impl Board {
 
             if !is_queenside_blocked && is_queenside_legal {
                 list.push(QUEENSIDE_CASTLES[self.tomove as usize]);
-            }
+            }}
         }
         let rook_pinmask = self.generate_rook_pins();
         let bishop_pinmask = self.generate_bishop_pins();
