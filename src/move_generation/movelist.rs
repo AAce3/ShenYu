@@ -46,18 +46,13 @@ pub struct ScoreList{
     pub length: u8,
 }
 
-impl Default for ScoreList {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl ScoreList {
     #[allow(clippy::uninit_assumed_init)]
-    pub fn new() -> Self {
+    pub fn new(len: u8) -> Self {
         Self {
             scores: unsafe { mem::MaybeUninit::uninit().assume_init() },
-            length: 0,
+            length: len,
         }
     }
     #[inline]

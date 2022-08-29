@@ -31,6 +31,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastdivide"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25c7df09945d65ea8d70b3321547ed414bbc540aad5bac6883d021b970f35b04"
+
+[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -120,6 +126,7 @@ name = "shenyu"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "fastdivide",
  "once_cell",
  "rand",
 ]
