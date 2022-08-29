@@ -13,16 +13,16 @@ pub const PROMOTION: MoveType = 3;
 
 const CASTLING_SQUARES: [CastleData; 64] = initialize_castlevals();
 const A1: Square = 0;
-const C1: Square = 2;
+pub const C1: Square = 2;
 const D1: Square = 3;
 const F1: Square = 5;
-const G1: Square = 6;
+pub const G1: Square = 6;
 const H1: Square = 7;
 const A8: Square = 56;
-const C8: Square = 58;
+pub const C8: Square = 58;
 const D8: Square = 59;
 const F8: Square = 61;
-const G8: Square = 62;
+pub const G8: Square = 62;
 const H8: Square = 63;
 
 const fn initialize_castlevals() -> [CastleData; 64] {
