@@ -48,7 +48,7 @@ enum Stage {
 pub struct MovePicker<'a> {
     board: &'a Board,
     orderdata: &'a OrderData,
-    ply: u8,
+    ply: u16,
     curr_idx: usize,
     curr_scorelist: ScoreList,
     curr_mvlist: MoveList,
@@ -63,7 +63,7 @@ impl MovePicker<'_> {
     pub fn new<'a>(
         board: &'a Board,
         orderdata: &'a OrderData,
-        ply: u8,
+        ply: u16,
         ttmove: ShortMove,
     ) -> MovePicker<'a> {
         MovePicker {
