@@ -59,6 +59,7 @@ pub trait Action {
         base_str
     }
     fn to_longmove(&self, board: &Board) -> Move;
+    fn to_shortmove(&self) -> ShortMove;
 
 }
 
@@ -118,6 +119,11 @@ impl Action for Move {
     #[inline]
     fn to_longmove(&self, _board: &Board) -> Move {
         *self
+    }
+
+    #[inline]
+    fn to_shortmove(&self) -> ShortMove {
+        *self as u16
     }
 
 
@@ -190,6 +196,11 @@ impl Action for ShortMove {
             newmove.set_doublemove();
         }
         newmove
+    }
+
+    #[inline]
+    fn to_shortmove(&self) -> ShortMove {
+        *self
     }
 
 }
