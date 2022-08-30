@@ -22,7 +22,7 @@ impl TranspositionTable {
             divide_by: DividerU64::divide_by(entries as u64),
         }
     }
-    pub fn probe(&mut self, key: ZobristKey) -> &mut Entry {
+    pub fn probe(&mut self, key: ZobristKey) -> *mut Entry {
         let idx = self.divide_by.divide(key);
         self.table[idx as usize].probe(key)
     }
@@ -49,14 +49,14 @@ impl Bucket {
             entries: [Entry::new(); 6],
         }
     }
-    pub fn probe(&mut self, key: u64) -> &mut Entry {
+    pub fn probe(&mut self, key: u64) -> *mut Entry {
         &mut self.entries[key as usize % 6]
     }
 }
 
 type NodeType = u8;
 pub const NULL: NodeType = 0;
-pub const ALPHA: NodeType = 0b10;
+pub const BETA: NodeType = 0b10;
 pub const EXACT: NodeType = 0b11;
 
 #[repr(packed)]
