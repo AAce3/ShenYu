@@ -25,11 +25,11 @@ use super::{
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
 impl Board {
-    pub fn generate_moves(&self, quiets: bool, captures: bool) -> MoveList {
+    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&self) -> MoveList {
         let mut list = MoveList::new();
         let occupancy = self.get_occupancy();
-        let quiet_sqrs = if quiets { !occupancy } else { 0 };
-        let capture_squares = if captures { self[!self.tomove] } else { 0 };
+        let quiet_sqrs = if QUIETS { !occupancy } else { 0 };
+        let capture_squares = if CAPTURES { self[!self.tomove] } else { 0 };
 
         let kingbb = self.get_pieces(KING, self.tomove);
         let blind_board = occupancy ^ kingbb; // ray-attackers "see through" the king
@@ -44,10 +44,10 @@ impl Board {
         {
             let kingsqr = kingbb.lsb();
             let moves = KING_ATTACKS[kingsqr as usize] & !atk_mask;
-            let mut captures = moves & capture_squares;
+            let mut capture_moves = moves & capture_squares;
             let mut quiet_moves = moves & quiet_sqrs;
-            while captures != 0 {
-                let to = captures.pop_lsb();
+            while capture_moves != 0 {
+                let to = capture_moves.pop_lsb();
                 let mut action = Move::new_move(kingsqr, to, NORMAL);
                 action.set_moving_piece(KING);
                 action.set_capture();
@@ -62,7 +62,7 @@ impl Board {
             }
 
             // generate castling moves
-            if quiets{
+            if QUIETS{
             let rights = self.get_castlerights(self.tomove);
             let is_kingside_legal = rights & 0b10 != 0;
             let is_queenside_legal = rights & 1 != 0;
@@ -263,7 +263,8 @@ impl Board {
                         list.push(doublepush);
                     }
                 }
-                if unlikely(pr_push != 0) {
+
+                if unlikely(pr_push != 0){
                     let to = pr_push.lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
                     action.set_moving_piece(PAWN);
@@ -275,13 +276,13 @@ impl Board {
                     }
                 }
 
-                let mut captures = PAWN_CAPTURES[self.tomove as usize][from as usize]
+                let mut capture_moves = PAWN_CAPTURES[self.tomove as usize][from as usize]
                     & legal_squares
                     & capture_squares;
-                let mut pr_captures = captures & EIGTH_RANK[self.tomove as usize];
-                captures ^= pr_captures;
-                while captures != 0 {
-                    let to = captures.pop_lsb();
+                let mut pr_captures = capture_moves & EIGTH_RANK[self.tomove as usize];
+                capture_moves ^= pr_captures;
+                while capture_moves != 0 {
+                    let to = capture_moves.pop_lsb();
                     let mut action = Move::new_move(from, to, NORMAL);
                     action.set_moving_piece(PAWN);
                     action.set_capture();
@@ -335,14 +336,14 @@ impl Board {
             }
             while bishop_pinned != 0 {
                 let from = bishop_pinned.pop_lsb();
-                let mut captures = PAWN_CAPTURES[self.tomove as usize][from as usize]
+                let mut capture_moves = PAWN_CAPTURES[self.tomove as usize][from as usize]
                     & capture_squares
                     & legal_squares
                     & bishop_pinmask;
-                let mut pr_captures = captures & EIGTH_RANK[self.tomove as usize] & legal_squares;
-                captures ^= pr_captures;
-                while captures != 0 {
-                    let to = captures.pop_lsb();
+                let mut pr_captures = capture_moves & EIGTH_RANK[self.tomove as usize] & legal_squares;
+                capture_moves ^= pr_captures;
+                while capture_moves != 0 {
+                    let to = capture_moves.pop_lsb();
                     let mut action = Move::new_move(from, to, NORMAL);
                     action.set_moving_piece(PAWN);
                     action.set_capture();
@@ -362,7 +363,7 @@ impl Board {
                 }
             }
             {
-                if captures {
+                if CAPTURES {
                     let passant_bb: Bitboard;
                     let square: Square;
                     match self.passant_square {
