@@ -24,15 +24,16 @@ pub fn perft_testing(){
 }
 
 impl Board {
+    
     pub fn perft(&self, depth: u8) -> u32 {
         if depth == 0 {
             1
         } else if depth == 1 {
-            let moves = self.generate_moves(true, true);
+            let moves = self.generate_moves::<true, true>();
             moves.length as u32
         } else {
             let mut accum = 0;
-            let moves = self.generate_moves(true, true);
+            let moves = self.generate_moves::<true, true>();
             for i in 0..moves.length {
                 let action = moves[i as usize];
                 let newb = self.do_move(action);
@@ -43,7 +44,7 @@ impl Board {
     }
 
     pub fn divide_perft(&self, depth: u8) {
-        let moves = self.generate_moves(true, true);
+        let moves = self.generate_moves::<true, true>();
 
         assert_ne!(depth, 0);
         let mut nodes_searched = 0;
