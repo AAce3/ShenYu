@@ -12,7 +12,7 @@ use crate::{
         masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
     },
 };
-const SEEVALUES: [i16; 7] = [0, 100, 315, 320, 500, 900, 9999];
+const SEEVALUES: [i16; 7] = [0, 100, 316, 320, 500, 900, 10_000];
 
 impl Board {
     pub fn see(&self, action: Move) -> i16 {
