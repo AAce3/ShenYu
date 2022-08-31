@@ -1,4 +1,3 @@
-use fastdivide::DividerU64;
 
 use crate::{board_state::zobrist::ZobristKey, move_generation::action::ShortMove};
 // 32 bits: zob key
@@ -9,7 +8,7 @@ use crate::{board_state::zobrist::ZobristKey, move_generation::action::ShortMove
 
 pub struct TranspositionTable {
     table: Vec<Bucket>,
-    divide_by: DividerU64,
+
 }
 
 const CONVERSION: usize = (1 << 20) / 64;
@@ -19,12 +18,12 @@ impl TranspositionTable {
         let entries = size * CONVERSION;
         Self {
             table: vec![Bucket::new(); entries],
-            divide_by: DividerU64::divide_by(entries as u64),
+
         }
     }
     pub fn probe(&mut self, key: ZobristKey) -> *mut Entry {
-        let idx = self.divide_by.divide(key);
-        self.table[idx as usize].probe(key)
+        let idx = key as usize % self.table.len();
+        self.table[idx].probe(key)
     }
 }
 #[derive(Clone, Copy)]
@@ -58,6 +57,7 @@ type NodeType = u8;
 pub const NULL: NodeType = 0;
 pub const BETA: NodeType = 0b10;
 pub const EXACT: NodeType = 0b11;
+pub const QNODE: NodeType = 0b01;
 
 #[repr(packed)]
 #[derive(Clone, Copy)]
