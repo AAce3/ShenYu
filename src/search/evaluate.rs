@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use crate::board_state::{
     bitboard::BB,
     board::Board,
-    typedefs::{Color, Piece, Sq, Square, BLACK, WHITE},
+    typedefs::{Color, Piece, Sq, Square, BISHOP, BLACK, KNIGHT, PAWN, QUEEN, ROOK, WHITE},
 };
 
 // pesto psqts
@@ -264,6 +264,24 @@ impl Board {
             eg_material: [white_eg_material, black_eg_material],
         }
     }
+
+    pub fn evaluate(&self) -> i16 {
+        self.evaluator.evaluate()
+    }
+
+    pub fn is_draw(&self) -> bool {
+        // material draw
+        let can_force_mate = self[PAWN] > 0
+            || self[ROOK] > 0
+            || self[QUEEN] > 0
+            || self.get_pieces(BISHOP, WHITE).count_ones() >= 2
+            || self.get_pieces(BISHOP, BLACK).count_ones() >= 2
+            || (self.get_pieces(BISHOP, WHITE).count_ones() >= 1
+                && self.get_pieces(KNIGHT, WHITE) >= 1)
+            || (self.get_pieces(BISHOP, BLACK).count_ones() >= 1
+                && self.get_pieces(KNIGHT, BLACK) >= 1);
+        !can_force_mate || self.halfmove_clock >= 100
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -313,6 +331,15 @@ impl IncrementalEval {
     pub fn move_piece(&mut self, from: Square, to: Square, piecetype: Piece, color: Color) {
         self.remove_piece(from, piecetype, color);
         self.set_piece(to, piecetype, color);
+    }
+
+    #[inline]
+    pub fn evaluate(&self) -> i16 {
+        let mg = self.mg_material[0] - self.mg_material[1];
+        let eg = self.eg_material[0] - self.eg_material[1];
+        let egphase = self.phase as i16;
+        let mgphase = (TOTAL_PHASE - self.phase) as i16;
+        (egphase * eg + mgphase * mg) / (TOTAL_PHASE as i16)
     }
 }
 pub struct EvaluationParams {
