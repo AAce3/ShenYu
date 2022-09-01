@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp};
 
 use crate::{
     board_state::{
@@ -82,6 +82,14 @@ impl MoveSorter<'_> {
             }
         }
         let bestmove = self.moves[best_idx];
+        if bestmove.is_capture(self.board) && best_score < W_CAPTURE_OFFSET{
+            let see_score = self.board.see(bestmove);
+            if see_score < best_score{
+                self.scores[best_idx] = see_score;
+                return self.next(history, killers)
+            }
+
+        }
         self.moves.swap(best_idx, self.curr_idx);
         self.scores.swap(best_idx, self.curr_idx);
 
@@ -103,7 +111,7 @@ impl History {
         self.history[color as usize][piece as usize - 1][moveto as usize] =
             cmp::min(historyval + depth * depth, MAX_HISTORY_SCORE);
     }
-    
+
     pub fn age(&mut self) {
         for color in self.history.iter_mut() {
             for piecetype in color.iter_mut() {
@@ -115,13 +123,13 @@ impl History {
     }
 }
 pub struct Killer {
-    killers: [[Move; 2]; 256],
+    pub table: [[Move; 2]; 256],
 }
 
 impl Killer {
     pub fn update_killer(&mut self, ply: u16, cutoffmove: Move) {
         let cutoffmove = cutoffmove;
-        let killers = &mut self.killers[ply as usize];
+        let killers = &mut self.table[ply as usize];
         if killers[0] == cutoffmove {
         } else {
             let sl1_killer = killers[0];
@@ -129,7 +137,10 @@ impl Killer {
             killers[0] = cutoffmove;
         }
     }
+    
 }
+
+
 
 pub const MATERIAL_VALUES: [i16; 7] = [0, 100, 316, 320, 500, 900, 0];
 impl Board {
