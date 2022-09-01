@@ -266,7 +266,8 @@ impl Board {
     }
 
     pub fn evaluate(&self) -> i16 {
-        self.evaluator.evaluate()
+        let multipliers = [1, -1];
+        self.evaluator.evaluate() * multipliers[self.tomove as usize]
     }
 
     pub fn is_draw(&self) -> bool {
