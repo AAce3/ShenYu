@@ -14,7 +14,7 @@ const SYMBOLS: [[char; 2]; 7] = [
     ['♛', '♕'],
     ['♚', '♔'],
 ];
-const CASTLE_RIGHTS: [&str; 16] = [
+pub const CASTLE_RIGHTS: [&str; 16] = [
     "-", "q", "k", "kq", "Q", "Qq", "Qk", "Qkq", "K", "Kq", "Kk", "Kkq", "KQ", "KQq", "KQk", "KQkq",
 ];
 

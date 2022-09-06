@@ -7,4 +7,3 @@ pub mod move_generation;
 pub mod testing;
 pub mod search;
 pub mod uci;
-

@@ -20,13 +20,13 @@ use super::{
     magic::{bishop_attacks, rook_attacks},
     makemove::NORMAL,
     masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
-    movelist::MoveList,
+    list::List,
 };
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
 impl Board {
-    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&self) -> MoveList {
-        let mut list = MoveList::new();
+    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&self) -> List<Move> {
+        let mut list = List::new();
         let occupancy = self.get_occupancy();
         let quiet_sqrs = if QUIETS { !occupancy } else { 0 };
         let capture_squares = if CAPTURES { self[!self.tomove] } else { 0 };
@@ -62,32 +62,33 @@ impl Board {
             }
 
             // generate castling moves
-            if QUIETS{
-            let rights = self.get_castlerights(self.tomove);
-            let is_kingside_legal = rights & 0b10 != 0;
-            let is_queenside_legal = rights & 1 != 0;
-            let blocking_castle = occupancy;
-            let checking_castle = atk_mask;
-            const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
-            const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
-            const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
-            const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
+            if QUIETS {
+                let rights = self.get_castlerights(self.tomove);
+                let is_kingside_legal = rights & 0b10 != 0;
+                let is_queenside_legal = rights & 1 != 0;
+                let blocking_castle = occupancy;
+                let checking_castle = atk_mask;
+                const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
+                const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
+                const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
+                const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
 
-            let is_kingside_blocked =
-                blocking_castle & BLOCK_OCCUPIED_KINGSIDE[self.tomove as usize] != 0
-                    || checking_castle & BLOCK_CHECKED_KINGSIDE[self.tomove as usize] != 0;
-            let is_queenside_blocked =
-                blocking_castle & BLOCK_OCCUPIED_QUEENSIDE[self.tomove as usize] != 0
-                    || checking_castle & BLOCK_CHECKED_QUEENSIDE[self.tomove as usize] != 0;
-            const KINGSIDE_CASTLES: [Move; 2] = [397700, 401340];
-            const QUEENSIDE_CASTLES: [Move; 2] = [397444, 401084];
-            if !is_kingside_blocked && is_kingside_legal {
-                list.push(KINGSIDE_CASTLES[self.tomove as usize]);
+                let is_kingside_blocked =
+                    blocking_castle & BLOCK_OCCUPIED_KINGSIDE[self.tomove as usize] != 0
+                        || checking_castle & BLOCK_CHECKED_KINGSIDE[self.tomove as usize] != 0;
+                let is_queenside_blocked =
+                    blocking_castle & BLOCK_OCCUPIED_QUEENSIDE[self.tomove as usize] != 0
+                        || checking_castle & BLOCK_CHECKED_QUEENSIDE[self.tomove as usize] != 0;
+                const KINGSIDE_CASTLES: [Move; 2] = [397700, 401340];
+                const QUEENSIDE_CASTLES: [Move; 2] = [397444, 401084];
+                if !is_kingside_blocked && is_kingside_legal {
+                    list.push(KINGSIDE_CASTLES[self.tomove as usize]);
+                }
+
+                if !is_queenside_blocked && is_queenside_legal {
+                    list.push(QUEENSIDE_CASTLES[self.tomove as usize]);
+                }
             }
-
-            if !is_queenside_blocked && is_queenside_legal {
-                list.push(QUEENSIDE_CASTLES[self.tomove as usize]);
-            }}
         }
         let rook_pinmask = self.generate_rook_pins();
         let bishop_pinmask = self.generate_bishop_pins();
@@ -239,10 +240,9 @@ impl Board {
                 let bb = pawns.pop_bb();
                 let from = bb.lsb();
                 //generate forward push
-                let mut forward = bb.forward(self.tomove) & quiet_sqrs;
-                let mut pr_push = forward & EIGTH_RANK[self.tomove as usize];
-                forward ^= pr_push;
-                pr_push &= legal_squares;
+                let forward =
+                    bb.forward(self.tomove) & quiet_sqrs & !EIGTH_RANK[self.tomove as usize];
+
                 if forward != 0 {
                     if forward & legal_squares != 0 {
                         let to = forward.lsb();
@@ -264,23 +264,33 @@ impl Board {
                     }
                 }
 
-                if unlikely(pr_push != 0){
+                let mut pr_push =
+                    bb.forward(self.tomove) & EIGTH_RANK[self.tomove as usize] & !occupancy;
+                pr_push &= legal_squares;
+
+                if unlikely(pr_push != 0) {
                     let to = pr_push.lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
                     action.set_moving_piece(PAWN);
-                    for piecetype in PIECES {
+                    if CAPTURES {
                         let mut pr_move = action;
-                        pr_move.set_pr_piece(piecetype);
-
+                        pr_move.set_pr_piece(QUEEN);
                         list.push(pr_move);
+                    }
+                    if QUIETS {
+                        for piecetype in PIECES.iter().skip(1) {
+                            let mut pr_move = action;
+                            pr_move.set_pr_piece(*piecetype);
+                            list.push(pr_move);
+                        }
                     }
                 }
 
                 let mut capture_moves = PAWN_CAPTURES[self.tomove as usize][from as usize]
                     & legal_squares
-                    & capture_squares;
-                let mut pr_captures = capture_moves & EIGTH_RANK[self.tomove as usize];
-                capture_moves ^= pr_captures;
+                    & capture_squares
+                    & !EIGTH_RANK[self.tomove as usize];
+
                 while capture_moves != 0 {
                     let to = capture_moves.pop_lsb();
                     let mut action = Move::new_move(from, to, NORMAL);
@@ -288,17 +298,28 @@ impl Board {
                     action.set_capture();
                     list.push(action);
                 }
+
+                let mut pr_captures = PAWN_CAPTURES[self.tomove as usize][from as usize]
+                    & EIGTH_RANK[self.tomove as usize]
+                    & self[!self.tomove]
+                    & legal_squares;
+                    
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
                     action.set_moving_piece(PAWN);
                     action.set_capture();
-
-                    for piecetype in PIECES {
+                    if CAPTURES {
                         let mut pr_move = action;
-                        pr_move.set_pr_piece(piecetype);
-
+                        pr_move.set_pr_piece(QUEEN);
                         list.push(pr_move);
+                    }
+                    if QUIETS {
+                        for piecetype in PIECES.iter().skip(1) {
+                            let mut pr_move = action;
+                            pr_move.set_pr_piece(*piecetype);
+                            list.push(pr_move);
+                        }
                     }
                 }
             }
@@ -339,9 +360,9 @@ impl Board {
                 let mut capture_moves = PAWN_CAPTURES[self.tomove as usize][from as usize]
                     & capture_squares
                     & legal_squares
-                    & bishop_pinmask;
-                let mut pr_captures = capture_moves & EIGTH_RANK[self.tomove as usize] & legal_squares;
-                capture_moves ^= pr_captures;
+                    & bishop_pinmask
+                    & !EIGTH_RANK[self.tomove as usize];
+
                 while capture_moves != 0 {
                     let to = capture_moves.pop_lsb();
                     let mut action = Move::new_move(from, to, NORMAL);
@@ -350,15 +371,28 @@ impl Board {
                     list.push(action);
                 }
 
+                let mut pr_captures = PAWN_CAPTURES[self.tomove as usize][from as usize]
+                    & EIGTH_RANK[self.tomove as usize]
+                    & self[!self.tomove]
+                    & legal_squares
+                    & bishop_pinmask;
+                    
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
                     action.set_moving_piece(PAWN);
                     action.set_capture();
-                    for piecetype in PIECES {
+                    if CAPTURES {
                         let mut pr_move = action;
-                        pr_move.set_pr_piece(piecetype);
+                        pr_move.set_pr_piece(QUEEN);
                         list.push(pr_move);
+                    }
+                    if QUIETS {
+                        for piecetype in PIECES.iter().skip(1) {
+                            let mut pr_move = action;
+                            pr_move.set_pr_piece(*piecetype);
+                            list.push(pr_move);
+                        }
                     }
                 }
             }
@@ -384,10 +418,9 @@ impl Board {
                         let mut newpassant = Move::new_move(from, to, PASSANT);
                         newpassant.set_moving_piece(PAWN);
                         let newb = self.do_move(newpassant);
-                        if !newb.incheck(self.tomove){
+                        if !newb.incheck(self.tomove) {
                             list.push(newpassant);
                         }
-                        
                     }
                 }
             }
@@ -509,7 +542,7 @@ impl Board {
     }
 
     #[inline]
-    pub fn incheck(&self, color: Color) -> bool{
+    pub fn incheck(&self, color: Color) -> bool {
         let relevant_king_square = self.get_pieces(KING, color).lsb();
         self.is_attacked(relevant_king_square, !color)
     }

@@ -9,7 +9,7 @@ use crate::{
     move_generation::{
         action::{Action, Move},
         magic::{bishop_attacks, rook_attacks},
-        masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES}, makemove::PASSANT,
+        masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES}, makemove::{PASSANT, PROMOTION},
     },
 };
 const SEEVALUES: [i16; 7] = [0, 100, 316, 320, 500, 900, 10_000];
@@ -18,6 +18,9 @@ impl Board {
     pub fn see(&self, action: Move) -> i16 {
         if action.move_type() == PASSANT{
             return 100;
+        }
+        if action.move_type() == PROMOTION{
+            return SEEVALUES[action.promote_to() as usize];
         }
         let from = action.move_from();
         let mut from_bb = Bitboard::new(from);

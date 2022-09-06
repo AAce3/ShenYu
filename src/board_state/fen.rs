@@ -1,3 +1,5 @@
+use crate::board_state::{typedefs::SQUARE_NAMES, display};
+
 use super::{
     board::Board,
     typedefs::{Sq, Square, BISHOP, BLACK, KING, KNIGHT, PAWN, QUEEN, ROOK, WHITE},
@@ -7,12 +9,60 @@ const ACTIVE_COLOR: u8 = 1;
 const CASTLE_RIGHTS: u8 = 2;
 const EP_SQUARE: u8 = 3;
 const HALFMOVE_CLOCK: u8 = 4;
+const PIECECHARS: [char; 7] = [' ', 'p', 'n', 'b', 'r', 'q', 'k'];
 impl Board {
+    pub fn generate_fen(&self) -> String {
+        let mut base = String::new();
+        // parse board
+        let mut curr_skip = 0;
+
+        for sqr in 0..64 {
+            if sqr % 8 == 0 && sqr != 0 {
+                if curr_skip != 0 {
+                    let strval = char::from_digit(curr_skip, 10).unwrap();
+                    base.push(strval);
+                }
+                base.push('/');
+
+                curr_skip = 0;
+            }
+            let actual_sqr = sqr.flip();
+            let piece_at = self.get_at_square(actual_sqr);
+            if piece_at != 0 {
+                if curr_skip != 0 {
+                    let strval = char::from_digit(curr_skip, 10).unwrap();
+                    base.push(strval);
+     
+                }
+                curr_skip = 0;
+                let mut relevant_char = PIECECHARS[piece_at as usize];
+                if self.is_color(actual_sqr, WHITE) {
+                    relevant_char = relevant_char.to_ascii_uppercase();
+                }
+                base.push(relevant_char);
+            } else {
+                curr_skip += 1;
+            }
+        }
+        const ACTIVE_COLORS: [char; 2] = ['w', 'b'];
+        base += " ";
+        base.push(ACTIVE_COLORS[self.tomove as usize]);
+        base += " ";
+        base += display::CASTLE_RIGHTS[self.castling_rights as usize];
+        let passantstring = match self.passant_square{
+            None => "-",
+            Some(val) => SQUARE_NAMES[val as usize],
+        };
+        base += " ";
+        base += passantstring;
+        base
+    }
+    
     pub fn parse_fen(fen: &str) -> Result<Board, u8> {
         let split_fen = fen.split(' ');
         let mut starting_board = Board::new();
         for (id, part) in split_fen.enumerate() {
-            match id as u8{
+            match id as u8 {
                 PIECES => starting_board.set_pieces(part)?,
                 ACTIVE_COLOR => starting_board.set_tomove(part)?,
                 CASTLE_RIGHTS => starting_board.set_castling(part)?,
@@ -34,7 +84,6 @@ impl Board {
             if symbol == '/' {
                 file = 0;
                 rank -= 1;
-                
             } else if symbol.is_numeric() {
                 let val = char::to_digit(symbol, 10).unwrap() as u8;
                 file += val;

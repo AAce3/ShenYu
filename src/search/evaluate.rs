@@ -6,6 +6,8 @@ use crate::board_state::{
     typedefs::{Color, Piece, Sq, Square, BISHOP, BLACK, KNIGHT, PAWN, QUEEN, ROOK, WHITE},
 };
 
+
+
 // pesto psqts
 const PAWN_PHASE: u16 = 0;
 const KNIGHT_PHASE: u16 = 1;
@@ -235,6 +237,26 @@ pub fn generate_eval_params() -> EvaluationParams {
 }
 
 impl Board {
+    pub fn beancount(&self) -> i16{
+        let mut score = 0;
+        score += self.get_pieces(PAWN, WHITE).count_ones() as i16 * 100;
+        score -= self.get_pieces(PAWN, BLACK).count_ones() as i16 * 100;
+
+        score += self.get_pieces(KNIGHT, WHITE).count_ones() as i16 * 315;
+        score -= self.get_pieces(KNIGHT, BLACK).count_ones() as i16 * 315;
+
+        score += self.get_pieces(BISHOP, WHITE).count_ones() as i16 * 325;
+        score -= self.get_pieces(BISHOP, BLACK).count_ones() as i16 * 325;
+
+        score += self.get_pieces(ROOK, WHITE).count_ones() as i16 * 500;
+        score -= self.get_pieces(ROOK, BLACK).count_ones() as i16 * 500;
+
+        score += self.get_pieces(QUEEN, WHITE).count_ones() as i16 * 900;
+        score -= self.get_pieces(QUEEN, BLACK).count_ones() as i16 * 900;
+        
+
+        score
+    }
     pub fn generate_eval(&self) -> IncrementalEval {
         let mut white_mg_material = 0;
         let mut black_mg_material = 0;
@@ -266,8 +288,12 @@ impl Board {
     }
 
     pub fn evaluate(&self) -> i16 {
-        let multipliers = [1, -1];
-        self.evaluator.evaluate() * multipliers[self.tomove as usize]
+        let eval = self.evaluator.evaluate();
+        if self.tomove == WHITE{
+            eval
+        } else {
+            -eval
+        }
     }
 
     pub fn is_draw(&self) -> bool {

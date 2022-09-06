@@ -32,7 +32,7 @@ impl Zobrist {
         let mut random = StdRng::from_seed(SEED);
         let mut piecesquares = [[[0; 6]; 2]; 64];
         for square in 0..64 {
-            for color in 0..1 {
+            for color in 0..2 {
                 for piece in 0..6 {
                     piecesquares[square][color][piece] = random.next_u64();
                 }
@@ -75,6 +75,7 @@ impl Board {
         for square in 0..64 {
             let iswhite = self.is_color(square, WHITE);
             let isblack = self.is_color(square, BLACK);
+
             if iswhite {
                 let piece = self.get_at_square(square);
                 let val = ZOBRIST.get_piece_zob(square, WHITE, piece);
