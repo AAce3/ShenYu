@@ -2,7 +2,7 @@ use std::{
     mem,
     ops::{Index, IndexMut},
 };
-
+// Custom list implementation that can be stored on the stack
 pub struct List<T> {
     pub items: [T; 255],
     pub length: u8,
@@ -13,9 +13,6 @@ impl<T> Default for List<T> {
         Self::new()
     }
 }
-
-
-
 
 impl<T> List<T> {
     #[allow(clippy::uninit_assumed_init)]
@@ -35,6 +32,13 @@ impl<T> List<T> {
     #[inline]
     pub fn swap(&mut self, idx1: usize, idx2: usize) {
         self.items.swap(idx1, idx2);
+    }
+
+    #[inline]
+    #[allow(clippy::uninit_assumed_init)]
+    pub fn clear(&mut self) {
+        self.length = 0;
+        self.items = unsafe { mem::MaybeUninit::uninit().assume_init() };
     }
 }
 

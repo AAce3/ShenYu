@@ -6,6 +6,8 @@ use crate::board_state::{bitboard::{Bitboard, BB, Direction::{N, E, S, W, NE, NW
 pub static KING_ATTACKS: Lazy<[Bitboard; 64]> = Lazy::new(initialize_king_attacks);
 pub static KNIGHT_ATTACKS: Lazy<[Bitboard; 64]> = Lazy::new(initialize_knight_attacks);
 pub static PAWN_CAPTURES: Lazy<[[Bitboard; 64]; 2]> = Lazy::new(initialize_pawn_attacks);
+
+// Precalculated attack tables for non sliding pieces
 fn initialize_king_attacks() -> [Bitboard; 64] {
     let mut arr = [0; 64];
     for (square, val) in arr.iter_mut().enumerate() {
@@ -65,6 +67,7 @@ pub (crate) fn rook_endpoints(square: Square) -> Bitboard {
         | Bitboard::new((y_val + 1) * 8 - 1)
 }
 
+// dumb fill attack masks
 #[inline]
 pub (crate) fn initialize_rook_atkmask(occupancy: Bitboard, square: Square) -> Bitboard {
     let mut north = Bitboard::new(square);

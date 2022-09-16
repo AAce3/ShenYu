@@ -3,6 +3,8 @@ use std::io::{self, BufRead};
 use colored::Colorize;
 
 use crate::{board_state::board::Board, move_generation::action::Action};
+// A tool for debugging perft
+// Takes fen, depth and stockfish results and prints differences to stdout
 
 pub fn perft_debug() {
     let mut mode = Mode::ReadFen;
@@ -108,7 +110,7 @@ macro_rules! bad {
 #[macro_export]
 macro_rules! check_stop {
     ($command_name: ident) => {
-        if $command_name.as_str() == "stop"{
+        if $command_name.as_str() == "stop" {
             return;
         }
     };

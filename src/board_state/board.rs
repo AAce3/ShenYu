@@ -7,7 +7,11 @@ use super::{
     typedefs::{Color, Piece, Square, BISHOP, BLACK, QUEEN, ROOK, WHITE},
     zobrist::{ZobristKey, ZOBRIST},
 };
-#[derive(Clone, Copy)]
+// Bitboards represent a boardstate in terms of a 64 bit integer. 
+// A 1 represents the presence of a piece at that square, a 0 represents an absence.
+// Board representation is one bitboard for each piece type (PNBRQK) and two color bitboards.
+
+#[derive(Clone)]
 pub struct Board {
     pub pieces: [Bitboard; 6], // pieces are indexed in this order: Pawn, Knight, Bishop, Rook, Queen, King
     pub colors: [Bitboard; 2],

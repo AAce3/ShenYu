@@ -1,3 +1,4 @@
+
 use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
@@ -13,6 +14,8 @@ pub static BISHOP_TABLES: Lazy<Table> = Lazy::new(fill_bishop_table);
 
 pub const ROOK_MAGIC_SIZE: usize = 102400;
 pub const BISHOP_MAGIC_SIZE: usize = 5248;
+
+// Magic Bitboards for sliding piece attacks. https://www.chessprogramming.org/Magic_Bitboards
 
 pub fn rook_attacks(square: Square, occupancy: Bitboard) -> Bitboard {
     let magic = ROOK_TABLES.magics[square as usize];
@@ -37,12 +40,18 @@ pub struct Magic {
 impl Magic {
     #[inline(always)]
     pub fn generate_index(&self, occupancy: Bitboard) -> usize {
-        let mut occ = occupancy;
-        occ &= self.mask;
-        occ *= self.magic_number;
-        occ >>= self.shift;
-        occ += self.location;
-        occ as usize
+        cfg_if::cfg_if! {
+            if #[cfg(target_feature = "bmi2")]{
+                return _pext_u64(occupancy,self.mask) as usize;
+            } else {
+                let mut occ = occupancy;
+                occ &= self.mask;
+                occ *= self.magic_number;
+                occ >>= self.shift;
+                occ += self.location;
+                occ as usize
+            }
+        }
     }
 }
 

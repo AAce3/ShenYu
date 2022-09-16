@@ -1,6 +1,6 @@
 
 
-use super::action::{Action, MoveType};
+use super::action::{Action, MoveType, Move};
 use crate::board_state::{
     board::Board,
     typedefs::{Square, KING, PAWN, ROOK},
@@ -62,8 +62,8 @@ struct CastleData {
 }
 
 impl Board {
-    pub fn do_move<T: Action>(&self, action: T) -> Board {
-        let mut board = *self;
+    pub fn do_move(&self, action: Move) -> Board {
+        let mut board = self.clone();
         board.halfmove_clock += 1;
         board.reset_ep();
 
@@ -72,14 +72,14 @@ impl Board {
 
         match action.move_type() {
             NORMAL => {
-                if action.is_capture(&board) {
+                if action.is_capture() {
                     let capturedpiece = board.get_at_square(to);
                     board.remove_piece(to, capturedpiece, !board.tomove);
                     board.halfmove_clock = 0;
                 }
-                let moving_piece = action.piece_moved(&board);
+                let moving_piece = action.piece_moved();
                 if moving_piece == PAWN {
-                    if action.is_pawn_doublepush(&board) {
+                    if action.is_pawn_doublepush() {
                         board.set_ep_sqr(to ^ 8);
                     }
                     board.halfmove_clock = 0;
@@ -99,7 +99,7 @@ impl Board {
                 board.halfmove_clock = 0;
             }
             PROMOTION => {
-                if action.is_capture(&board) {
+                if action.is_capture() {
                     let capturedpiece = board.get_at_square(to);
                     board.remove_piece(to, capturedpiece, !board.tomove);
                 }

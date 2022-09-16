@@ -6,7 +6,9 @@ use super::{
     board::Board,
     typedefs::{Color, Piece, Square, BLACK, NOPIECE, WHITE},
 };
-
+// Zobrist hashing "hashes" a board into a 64 bit integer by XORing its various features.
+// For each feature on the board, the hash is XORed with a random 64 bit integer to determine hash codes
+// Inevitably there will be collisions but those are rare.
 pub type ZobristKey = u64;
 
 pub static ZOBRIST: Lazy<Zobrist> = Lazy::new(Zobrist::new);

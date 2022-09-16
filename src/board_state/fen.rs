@@ -57,7 +57,7 @@ impl Board {
         base += passantstring;
         base
     }
-    
+    // Parse forsyth-edwards notation, returning a result of whether it was successful or not
     pub fn parse_fen(fen: &str) -> Result<Board, u8> {
         let split_fen = fen.split(' ');
         let mut starting_board = Board::new();

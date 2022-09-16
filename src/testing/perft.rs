@@ -11,6 +11,8 @@ use crate::{
 };
 
 pub fn perft_testing() {
+    // Perft tool plays out all moves for white, then black, then white, etc. and only evaluates leaf nodes.
+    // Perft uses bulk counting, i.e. rather than playing out moves at frontier nodes it counts the number of moves generated
     // thank you to leorik for test positions
     let path =
         Path::new(r"C:\Users\aaron\VSCode Projects\shenyu\src\testing\perft_test_positions.txt");

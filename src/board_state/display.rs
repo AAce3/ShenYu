@@ -17,7 +17,7 @@ const SYMBOLS: [[char; 2]; 7] = [
 pub const CASTLE_RIGHTS: [&str; 16] = [
     "-", "q", "k", "kq", "Q", "Qq", "Qk", "Qkq", "K", "Kq", "Kk", "Kkq", "KQ", "KQq", "KQk", "KQkq",
 ];
-
+// prints a board to stdout for debugging
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut base_string = String::new();

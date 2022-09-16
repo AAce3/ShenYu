@@ -1,14 +1,55 @@
+use std::io::stdin;
+
 use crate::{
     board_state::{
         board::Board,
         typedefs::{Square, BISHOP, KNIGHT, QUEEN, ROOK},
     },
-    move_generation::{
-        action::Action,
-        makemove::PROMOTION,
-    },
+    move_generation::{action::Action, makemove::PROMOTION},
+    search::alphabeta::SearchControl,
 };
+impl SearchControl {
+    pub fn parse_commands() {
+        let mut str = String::new();
+        'main: loop {
+            let mut mode = Mode::Null;
+            let input = stdin().read_line(&mut str);
+            if input.is_err() {
+                eprintln!("Error reading stdin!");
+                str.clear();
+                continue;
+            }
+            let splits = str.split(" ");
+            for (num, str) in splits.enumerate() {
+                if num == 0 {
+                    match str {
+                        "position" => mode = Mode::Position,
+                        "go" => mode = Mode::Go,
+                        "update" => mode = Mode::Update,
+                        _ => {
+                            eprintln!("Invalid command!");
+                            break 'main;
+                        }
+                    }
+                } else {
+                    match mode{
+                        Mode::Position => todo!(),
+                        Mode::Go => todo!(),
+                        Mode::Update => todo!(),
+                        Mode::Null => todo!(),
+                    }
+                }
+            }
+        }
+    }
+}
 
+enum Mode {
+    Position,
+    Go,
+    Update,
+    Null,
+}
 impl Board {
     pub fn do_input_move(&mut self, movestring: String) -> Result<(), u8> {
         let moves = self.generate_moves::<true, true>();

@@ -1,9 +1,12 @@
-use crate::{board_state::zobrist::ZobristKey, move_generation::action::ShortMove};
-// 32 bits: zob key
+use crate::{board_state::zobrist::ZobristKey};
+// 64 bits: zob key
 // 16 bits: shortmove
-// 16 bits: score (could use less but negatives are weird)
+// 16 bits: score
 // 2 bits: node type
-// 6 bits: depth (did you really expect to get to depth 64?)
+// 6 bits: depth
+
+// It is necessary to store node types so that we can account for beta cutoffs.
+// A beta cutoff is not the true value of the node, but it is a lower bound. The true score could be higher
 
 pub struct TranspositionTable {
     table: Vec<Entry>,
@@ -27,22 +30,18 @@ impl TranspositionTable {
     }
 }
 
-
 type NodeType = u8;
 pub const NULL: NodeType = 0;
 pub const BETA: NodeType = 0b10;
 pub const EXACT: NodeType = 0b11;
-pub const QNODE: NodeType = 0b01;
-
-
+pub const LEAF: NodeType = 0b01;
 #[derive(Clone, Copy)]
 #[repr(align(16))]
 pub struct Entry {
     pub key: u64,
-    pub bestmove: ShortMove,
+    pub bestmove: u16,
     pub score: i16,
     pub otherdata: u8,
-
 }
 
 impl Default for Entry {
@@ -60,13 +59,19 @@ impl Entry {
             otherdata: 0,
         }
     }
-    pub fn store(&mut self, key: u64, bestmove: ShortMove, eval: i16, depth: u8, nodetype: NodeType) {
+    pub fn store(
+        &mut self,
+        key: u64,
+        bestmove: u16,
+        eval: i16,
+        depth: u8,
+        nodetype: NodeType,
+    ) {
         let data = (depth << 2) | nodetype;
         self.key = key;
         self.bestmove = bestmove;
         self.score = eval;
         self.otherdata = data;
-
     }
     pub fn get_depth(&self) -> u8 {
         self.otherdata >> 2

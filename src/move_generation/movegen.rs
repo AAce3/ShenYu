@@ -17,15 +17,24 @@ use crate::{
 
 use super::{
     action::{Action, Move},
+    list::List,
     magic::{bishop_attacks, rook_attacks},
     makemove::NORMAL,
     masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
-    list::List,
 };
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
 impl Board {
     pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&self) -> List<Move> {
+        // Move generation is separated.
+        // First, pins and legal squares are determined.
+        // For a king, legal squares are where the enemy does not attack.
+        // Sliding pieces have to "see through" the king, otherwise you could move backwards from a rook attack for example.
+        // If we are in check, the only squares for other pieces are to block (if the checker is a slider)
+        // or to capture the attacking piece, unless we are in double check.
+        // Pinned pieces are calculated using X-ray attacks, and their attacks are generated separately.
+        // In addition, captures are generated separately from quiets.
+
         let mut list = List::new();
         let occupancy = self.get_occupancy();
         let quiet_sqrs = if QUIETS { !occupancy } else { 0 };
@@ -303,7 +312,7 @@ impl Board {
                     & EIGTH_RANK[self.tomove as usize]
                     & self[!self.tomove]
                     & legal_squares;
-                    
+
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
@@ -376,7 +385,7 @@ impl Board {
                     & self[!self.tomove]
                     & legal_squares
                     & bishop_pinmask;
-                    
+
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
                     let mut action = Move::new_move(from, to, PROMOTION);
@@ -498,6 +507,7 @@ impl Board {
         }
     }
 
+    // Pin squares are generated using X-ray attacks, by "seeing through" our pieces
     #[inline]
     pub fn generate_bishop_pins(&self) -> Bitboard {
         let kingsquare = self.get_pieces(KING, self.tomove).lsb();
@@ -582,6 +592,7 @@ fn generate_inbetweens() -> [[Bitboard; 64]; 64] {
     inbetweens
 }
 
+// complicated method from CPW to determine the mask in between two squares
 fn in_between_rays(square1: Square, square2: Square) -> Bitboard {
     const M1: u64 = u64::MAX;
     const A2A7: u64 = 0x0001010101010100;

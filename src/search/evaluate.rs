@@ -214,6 +214,10 @@ pub static EG_MATERIAL: [i16; 6] = [
     ENDGAME_QUEEN,
     0,
 ];
+// Uses PeSTO tables for evaluation.
+// Tapered evaluation forms a gradient between middle game and endgame evaluation parameters.
+// e.g. Keep the king safe during middlegame, develop it during endgame.
+// Phase is calculated by material
 
 pub static EVAL_PARAMS: Lazy<EvaluationParams> = Lazy::new(generate_eval_params);
 
@@ -237,26 +241,7 @@ pub fn generate_eval_params() -> EvaluationParams {
 }
 
 impl Board {
-    pub fn beancount(&self) -> i16{
-        let mut score = 0;
-        score += self.get_pieces(PAWN, WHITE).count_ones() as i16 * 100;
-        score -= self.get_pieces(PAWN, BLACK).count_ones() as i16 * 100;
-
-        score += self.get_pieces(KNIGHT, WHITE).count_ones() as i16 * 315;
-        score -= self.get_pieces(KNIGHT, BLACK).count_ones() as i16 * 315;
-
-        score += self.get_pieces(BISHOP, WHITE).count_ones() as i16 * 325;
-        score -= self.get_pieces(BISHOP, BLACK).count_ones() as i16 * 325;
-
-        score += self.get_pieces(ROOK, WHITE).count_ones() as i16 * 500;
-        score -= self.get_pieces(ROOK, BLACK).count_ones() as i16 * 500;
-
-        score += self.get_pieces(QUEEN, WHITE).count_ones() as i16 * 900;
-        score -= self.get_pieces(QUEEN, BLACK).count_ones() as i16 * 900;
-        
-
-        score
-    }
+    
     pub fn generate_eval(&self) -> IncrementalEval {
         let mut white_mg_material = 0;
         let mut black_mg_material = 0;
@@ -288,12 +273,9 @@ impl Board {
     }
 
     pub fn evaluate(&self) -> i16 {
+        const MULTIPLIERS: [i16; 2] = [1, -1];
         let eval = self.evaluator.evaluate();
-        if self.tomove == WHITE{
-            eval
-        } else {
-            -eval
-        }
+        eval * MULTIPLIERS[self.tomove as usize]
     }
 
     pub fn is_draw(&self) -> bool {
