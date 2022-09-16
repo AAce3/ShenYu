@@ -1,7 +1,7 @@
 use std::{cmp, time::Instant};
 
 use crate::{
-    board_state::board::Board,
+    board_state::{board::Board, typedefs::WHITE},
     move_generation::{
         action::{Action, Move},
         list::List,
@@ -24,6 +24,8 @@ impl SearchControl {
     pub fn go_search(&mut self) {
         let timer = Instant::now();
         self.searchdata.age_history();
+        self.searchdata.nodecount = 0;
+        self.searchdata.qnodecount = 0;
         let mut pv = List::new();
         let mut depth = 0;
         let mut alpha = -CHECKMATE;
@@ -52,7 +54,16 @@ impl SearchControl {
 
             let elapsed = timer.elapsed().as_millis() as u64;
 
-            let nps = self.searchdata.nodecount * 1000 / elapsed;
+            let nps = if elapsed == 0 {
+                0
+            } else {
+                self.searchdata.nodecount * 1000 / elapsed
+            };
+            let score = if self.curr_board.tomove == WHITE{
+                score
+            } else {
+                -score
+            };
             print!(
                 "info depth {} score {} nodes {} nps {} time {} pv",
                 depth, score, self.searchdata.nodecount, nps, elapsed
@@ -66,6 +77,13 @@ impl SearchControl {
             }
         }
         println!("bestmove {}", pv[0].to_algebraic());
+    }
+
+    pub fn reset(&mut self) {
+        self.curr_board =
+            Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        self.searchdata.clear();
+        self.curr_ply = 0;
     }
 }
 impl Board {
@@ -238,7 +256,6 @@ impl Board {
 }
 
 pub struct SearchData {
-    pub bestmove: Move,
     pub nodecount: u64,
     pub qnodecount: u64,
     pub tt: TranspositionTable,
@@ -258,14 +275,18 @@ impl SearchData {
         };
         let tt = TranspositionTable::new(32);
         SearchData {
-            bestmove: 0,
             nodecount: 0,
             qnodecount: 0,
             tt,
             ord: default_ord,
         }
     }
-
+    fn clear(&mut self) {
+        self.tt.clear();
+        self.ord.clear();
+        self.nodecount = 0;
+        self.qnodecount = 0;
+    }
     fn age_history(&mut self) {
         self.ord.age_history()
     }

@@ -123,6 +123,10 @@ impl OrderData {
             }
         }
     }
+    pub fn clear(&mut self){
+        self.history = [[[0; 64]; 6]; 2];
+        self.killers =  [[0; 2]; 256];
+    }
 }
 
 impl Board {

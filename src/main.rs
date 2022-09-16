@@ -19,6 +19,6 @@ fn main() {
         curr_ply: 0,
         curr_board: newb,
     };
-    control.go_search()
+    control.parse_commands();
     
 }
