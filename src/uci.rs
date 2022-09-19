@@ -1,94 +1,232 @@
-use std::io::stdin;
+use std::{
+    cmp,
+    io::{self, stdin},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+
+    },
+    thread,
+    time::{Duration, Instant},
+};
 
 use crate::{
     board_state::{
         board::Board,
-        typedefs::{Square, BISHOP, KNIGHT, QUEEN, ROOK},
+        typedefs::{Square, BISHOP, BLACK, KNIGHT, QUEEN, ROOK, WHITE},
     },
     move_generation::{action::Action, makemove::PROMOTION},
-    search::alphabeta::SearchControl,
+    search::{alphabeta::SearchControl, timer::Timer},
 };
-impl SearchControl {
-    pub fn parse_commands(&mut self) {
-        let mut str = String::new();
-        loop {
-            str.clear();
-            let mut mode = Mode::Null;
-            let input = stdin().read_line(&mut str);
-            if input.is_err() {
-                eprintln!("Error reading stdin!");
-                str.clear();
-                continue;
-            }
-            let splits = str.split(" ").collect::<Vec<&str>>();
-            match splits[0] {
-                "go" => {
-                    self.go_search();
-                    continue;
-                }
-                "stop" => break,
-                "reset" => {
-                    self.reset();
+use crate::{go_next, search::transposition::TranspositionTable};
 
-                    continue;
+pub struct Communicator {
+    pub search: SearchControl,
+    pub comm: Option<Sender<bool>>,
+}
+
+impl Communicator {
+    pub fn parse_commands(&'static mut self) {
+        let mut cmd = String::new();
+        let channel = mpsc::channel::<bool>();
+        self.comm = Some(channel.0);
+        self.search.searchdata.timer.recv = Some(channel.1);
+        thread::spawn(move || {
+            loop {
+            
+                cmd.clear();
+                stdin().read_line(&mut cmd).unwrap();
+                let cmd = cmd.clone();
+                let first_word = cmd.split(' ').next().unwrap_or(&cmd);
+    
+                match first_word {
+                    "uci" => Self::identify(),
+                    "setoption" => self.parse_options(cmd),
+                    "isready" => println!("readyok"),
+                    "ucinewgame" => self.search.reset(),
+                    "position" => self.parse_position(cmd),
+                    "go" => self.go(cmd),
+                    "stop" => self.comm.as_ref().unwrap().send(true).unwrap(),
+                    "quit" => return,
+                    _ => go_next!(),
                 }
-                "update" => {
-                    mode = Mode::Update;
-                }
-                "position" => {
-                    mode = Mode::Position;
-                }
-                _ => {
-                    eprintln!("Invalid command!");
-                    continue;
+        }
+    }
+        );
+        
+        
+    }
+    pub fn identify() {
+        println!("id name ShenYu");
+        println!("id author Aaron Li");
+        println!("option name Hash Size type spin default 32 min 1 max 8192");
+        println!("option name Clear Hash type button");
+        println!("uciok");
+    }
+
+    pub fn parse_options(&mut self, options: String) {
+        let mut split = options.split(' ');
+        let optiontype = split.nth(2).unwrap_or("");
+        match optiontype {
+            "Hash Size" => {
+                let next = split.next().unwrap_or("");
+                if let Ok(size) = str::parse::<usize>(next) {
+                    self.search.searchdata.tt = TranspositionTable::new(size)
                 }
             }
-            match mode {
-                Mode::Position => {
-                    if splits.len() >= 2 {
-                        let fen = splits[1];
-                        self.curr_board = match Board::parse_fen(fen) {
-                            Ok(board) => board,
-                            Err(_) => {
-                                eprintln!("Invalid Fen!");
-                                continue;
-                            }
+            "Clear Hash" => {
+                self.search.searchdata.tt.clear();
+            }
+            _ => (),
+        }
+    }
+
+    pub fn parse_position(&mut self, cmd: String) {
+        let mut split = cmd.split(' ');
+        let input_type = split.nth(1).unwrap_or("");
+        match input_type {
+            "fen" => {
+                if let Some(fen) = split.next() {
+                    if let Ok(nextb) = Board::parse_fen(fen) {
+                        self.search.curr_board = nextb;
+                    }
+                }
+            }
+            "startpos" => {
+                let mut newb =
+                    Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                        .unwrap();
+                for i in split {
+                    match newb.do_input_move(i.to_owned()) {
+                        Ok(board) => newb = board,
+                        Err(_) => break,
+                    }
+                }
+                self.search.curr_board = newb
+            }
+            _ => (),
+        }
+    }
+
+    pub fn go(&mut self, cmd: String) {
+        let mut mytime = u64::MAX;
+        let mut myinc = u64::MAX;
+        let mut maxdepth = u8::MAX;
+        let mut maxnodes = u64::MAX;
+        let mut maxtime = u64::MAX;
+        let parts = cmd.split(' ');
+        let mut curr_type = Type::Infinite;
+        enum Type {
+            Ponder,
+            WTime,
+            BTime,
+            WInc,
+            BInc,
+            MovesToGo,
+            Depth,
+            Mate,
+            Nodes,
+            MoveTime,
+            Infinite,
+        }
+        for part in parts {
+            match part {
+                "go" => continue,
+                "ponder" => curr_type = Type::Ponder,
+                "wtime" => curr_type = Type::WTime,
+                "btime" => curr_type = Type::BTime,
+                "winc" => curr_type = Type::WInc,
+                "binc" => curr_type = Type::BInc,
+                "movestogo" => curr_type = Type::MovesToGo,
+                "depth" => curr_type = Type::Depth,
+                "mate" => curr_type = Type::Mate,
+                "movetime" => curr_type = Type::MoveTime,
+                "infinite" => curr_type = Type::Infinite,
+                "nodes" => curr_type = Type::Nodes,
+                _ => match curr_type {
+                    Type::Ponder => {
+                        curr_type = Type::Infinite;
+                    }
+                    Type::WTime => {
+                        if self.search.curr_board.tomove == WHITE {
+                            let num = str::parse::<u64>(part).unwrap_or(0);
+                            mytime = num;
                         }
-                    } else {
-                        eprintln!("Invalid Fen!");
-                        continue;
+                        curr_type = Type::Infinite;
                     }
-                }
-                Mode::Update => {
-                    if splits.len() >= 2 {
-                        let action = splits[1];
-                        self.curr_board = match self.curr_board.do_input_move(action.to_owned()) {
-                            Ok(board) => board,
-                            Err(_) => {
-                                eprintln!("Invalid move!");
-                                continue;
-                            }
-                        };
-                        self.curr_ply += 1;
-                    } else {
-                        eprintln!("Invalid move!");
-                        continue;
+                    Type::BTime => {
+                        if self.search.curr_board.tomove == BLACK {
+                            let num = str::parse::<u64>(part).unwrap_or(0);
+                            mytime = num;
+                        }
+                        curr_type = Type::Infinite;
                     }
-                }
-                Mode::Null => {
-                    eprintln!("Invalid Command!");
-                    continue;
-                }
+                    Type::WInc => {
+                        if self.search.curr_board.tomove == WHITE {
+                            let num = str::parse::<u64>(part).unwrap_or(0);
+                            myinc = num;
+                        }
+                        curr_type = Type::Infinite;
+                    }
+                    Type::BInc => {
+                        if self.search.curr_board.tomove == BLACK {
+                            let num = str::parse::<u64>(part).unwrap_or(0);
+                            myinc = num;
+                        }
+                        curr_type = Type::Infinite;
+                    }
+                    Type::MovesToGo => {
+                        curr_type = Type::Infinite;
+                    }
+                    Type::Depth => {
+                        let num = str::parse::<u8>(part).unwrap_or(0);
+                        maxdepth = num;
+                    }
+                    Type::Mate => {
+                        curr_type = Type::Infinite;
+                    }
+                    Type::MoveTime => {
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        maxtime = num;
+                    }
+                    Type::Nodes => {
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        maxnodes = num;
+                    }
+                    Type::Infinite => continue,
+                },
             }
         }
+        let best_time = cmp::min(Timer::allocate_time(mytime, myinc), maxtime);
+        let istimed = best_time < 500_000;
+        self.search.searchdata.timer.time_alloted = best_time;
+        self.search.searchdata.timer.max_nodes = maxnodes;
+        self.search.searchdata.timer.maxdepth = maxdepth;
+        self.search.searchdata.timer.start_time = Instant::now();
+        self.search.searchdata.timer.is_timed = istimed;
+        self.search.searchdata.timer.stopped = false;
+        self.search.searchdata.timer.time_alloted = best_time;
+       
+        self.search.go_search();
     }
 }
 
-enum Mode {
-    Position,
-    Update,
-    Null,
+#[macro_export]
+macro_rules! go_next {
+    () => {{
+        thread::sleep(Duration::from_millis(10));
+        continue;
+    }};
 }
+pub fn spawn_stdin_channel() -> Receiver<String> {
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || loop {
+        let mut buffer = String::new();
+        io::stdin().read_line(&mut buffer).unwrap();
+        tx.send(buffer).unwrap();
+    });
+    rx
+}
+
 impl Board {
     pub fn do_input_move(&self, movestring: String) -> Result<Board, u8> {
         let moves = self.generate_moves::<true, true>();

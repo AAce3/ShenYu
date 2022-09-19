@@ -1,4 +1,4 @@
-use crate::{board_state::zobrist::ZobristKey};
+use crate::board_state::zobrist::ZobristKey;
 // 64 bits: zob key
 // 16 bits: shortmove
 // 16 bits: score
@@ -22,11 +22,13 @@ impl TranspositionTable {
         }
     }
     pub fn probe(&mut self, key: ZobristKey) -> *mut Entry {
-        let idx = key as usize & (self.table.len() - 1);
+        let idx = key as usize % self.table.len();
         &mut self.table[idx]
     }
     pub fn clear(&mut self) {
-        self.table.clear();
+        for i in self.table.iter_mut() {
+            (*i).store(0, 0, 0, 0, 0);
+        }
     }
 }
 
@@ -59,14 +61,7 @@ impl Entry {
             otherdata: 0,
         }
     }
-    pub fn store(
-        &mut self,
-        key: u64,
-        bestmove: u16,
-        eval: i16,
-        depth: u8,
-        nodetype: NodeType,
-    ) {
+    pub fn store(&mut self, key: u64, bestmove: u16, eval: i16, depth: u8, nodetype: NodeType) {
         let data = (depth << 2) | nodetype;
         self.key = key;
         self.bestmove = bestmove;

@@ -1,15 +1,16 @@
 use std::{cmp, time::Instant};
 
 use crate::{
-    board_state::{board::Board, typedefs::WHITE},
+    board_state::board::Board,
     move_generation::{
         action::{Action, Move},
         list::List,
-    },
+    }, 
 };
 
 use super::{
     moveorder::{MovePicker, OrderData},
+    timer::Timer,
     transposition::{TranspositionTable, BETA, EXACT},
 };
 const CHECKMATE: i16 = 10_000;
@@ -23,9 +24,15 @@ pub struct SearchControl {
 impl SearchControl {
     pub fn go_search(&mut self) {
         let timer = Instant::now();
+        if self.searchdata.timer.is_timed {
+            self.searchdata.timer.start_time = Instant::now();
+        }
+
         self.searchdata.age_history();
         self.searchdata.nodecount = 0;
         self.searchdata.qnodecount = 0;
+        self.searchdata.timer.stopped = false;
+        let mut bestmove = 0;
         let mut pv = List::new();
         let mut depth = 0;
         let mut alpha = -CHECKMATE;
@@ -39,19 +46,27 @@ impl SearchControl {
                 beta,
                 &mut self.searchdata,
                 self.curr_ply,
+                self.curr_ply as u8,
                 &mut pv,
             );
-
+            if self.searchdata.timer.stopped {
+                break;
+            }
             if score <= alpha || score >= beta {
                 beta = CHECKMATE;
                 alpha = -CHECKMATE;
                 depth -= 1;
                 continue;
             }
-
-            alpha = score - 35;
-            beta = score + 35;
-
+            bestmove = pv[0];
+            alpha = cmp::max(score - 35, -CHECKMATE);
+            beta = cmp::min(score + 35, CHECKMATE);
+            let mut scoretype = "score cp";
+            let mut reported_score = score;
+            if mated_in(score) < 64 && mated_in(score) > -64 {
+                scoretype = "mate";
+                reported_score = mated_in(score).div_ceil(2)
+            }
             let elapsed = timer.elapsed().as_millis() as u64;
 
             let nps = if elapsed == 0 {
@@ -59,24 +74,20 @@ impl SearchControl {
             } else {
                 self.searchdata.nodecount * 1000 / elapsed
             };
-            let score = if self.curr_board.tomove == WHITE{
-                score
-            } else {
-                -score
-            };
+
             print!(
-                "info depth {} score {} nodes {} nps {} time {} pv",
-                depth, score, self.searchdata.nodecount, nps, elapsed
+                "info depth {} {} {} nodes {} nps {} time {} pv",
+                depth, scoretype, reported_score, self.searchdata.nodecount, nps, elapsed
             );
             for i in 0..pv.length {
                 print!(" {}", pv[i as usize].to_algebraic());
             }
             println!();
-            if elapsed >= 6000 {
+            if depth >= self.searchdata.timer.maxdepth {
                 break;
             }
         }
-        println!("bestmove {}", pv[0].to_algebraic());
+        println!("bestmove {}", bestmove.to_algebraic());
     }
 
     pub fn reset(&mut self) {
@@ -86,26 +97,44 @@ impl SearchControl {
         self.curr_ply = 0;
     }
 }
+
 impl Board {
+    #[allow(clippy::too_many_arguments)]
     pub fn negamax<const ISROOT: bool>(
         &self,
-        depth: u8,
+        mut depth: u8,
         mut alpha: i16,
         beta: i16,
         data: &mut SearchData,
         ply: u16,
+        starting_ply: u8,
         pvline: &mut List<Move>,
     ) -> i16 {
         if self.is_draw() {
             return 0;
         }
+        let incheck = self.incheck(self.tomove);
+        if incheck {
+            depth += 1;
+        }
+        data.nodecount += 1;
+        if data.nodecount >= data.timer.max_nodes {
+            data.timer.stopped = true;
+        }
+        if data.timer.is_timed && data.nodecount % 4096 == 0 {
+            data.timer.stopped = data.timer.check_time() || data.timer.stopped;
+        }
+
+        if data.timer.stopped {
+            return 0;
+        }
 
         if depth == 0 {
             // If we are at zero depth, Q-search will allow us to evaluate a quiet position for accurate results
+            data.nodecount -= 1;
             return self.quiesce(alpha, beta, 0, data);
         }
 
-        data.nodecount += 1;
         let mut bestmove = 0;
         let ispv = beta - alpha != 1;
         let tt_entry = data.tt.probe(self.zobrist_key);
@@ -120,12 +149,27 @@ impl Board {
                 && (tt_data.get_nodetype() == EXACT
                     || (tt_data.get_nodetype() == BETA && score >= beta))
             {
+                if mated_in(score) < 64 && mated_in(score) > -64 {
+                    if score.is_positive() {
+                        return score - (ply as i16 - starting_ply as i16);
+                    } else {
+                        return score + (ply as i16 - starting_ply as i16);
+                    }
+                }
                 return score;
             }
         } else if depth >= 4 {
             // If there is no TT move, it's faster to do a shorter search and use that as the best move instead
             let mut newpvline = List::new();
-            self.negamax::<false>(depth - 2, alpha, beta, data, ply, &mut newpvline);
+            self.negamax::<false>(
+                depth - 2,
+                alpha,
+                beta,
+                data,
+                ply,
+                starting_ply,
+                &mut newpvline,
+            );
             bestmove = newpvline[0] as u16;
         }
 
@@ -144,8 +188,15 @@ impl Board {
             let newb = self.do_move(action);
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
             if (ispv && num_moves == 0) || (depth <= 3) {
-                score =
-                    -newb.negamax::<false>(depth - 1, -beta, -alpha, data, ply + 1, &mut newpvline);
+                score = -newb.negamax::<false>(
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    data,
+                    ply + 1,
+                    starting_ply,
+                    &mut newpvline,
+                );
             } else {
                 // Otherwise, search with a null window to maximize cutoffs
                 score = -newb.negamax::<false>(
@@ -154,6 +205,7 @@ impl Board {
                     -alpha,
                     data,
                     ply + 1,
+                    starting_ply,
                     &mut newpvline,
                 );
                 if score > alpha && score < beta {
@@ -164,6 +216,7 @@ impl Board {
                         -alpha,
                         data,
                         ply + 1,
+                        starting_ply,
                         &mut newpvline,
                     );
                 }
@@ -209,8 +262,8 @@ impl Board {
             }
         }
         if num_moves == 0 {
-            if self.incheck(self.tomove) {
-                return -CHECKMATE;
+            if incheck {
+                return mate_score(ply, starting_ply);
             } else {
                 return 0;
             }
@@ -225,7 +278,15 @@ impl Board {
     pub fn quiesce(&self, mut alpha: i16, beta: i16, ply: u16, data: &mut SearchData) -> i16 {
         data.qnodecount += 1;
         data.nodecount += 1;
-
+        if data.nodecount >= data.timer.max_nodes {
+            data.timer.stopped = true;
+        }
+        if data.timer.is_timed && data.nodecount % 4096 == 0 {
+            data.timer.stopped = data.timer.check_time() || data.timer.stopped;
+        }
+        if data.timer.stopped {
+            return 0;
+        }
         let bestscore = self.evaluate();
 
         if bestscore >= beta {
@@ -260,15 +321,11 @@ pub struct SearchData {
     pub qnodecount: u64,
     pub tt: TranspositionTable,
     pub ord: OrderData,
+    pub timer: Timer,
 }
 
-impl Default for SearchData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 impl SearchData {
-    pub fn new() -> Self {
+    pub fn new(t: Timer) -> Self {
         let default_ord = OrderData {
             killers: [[0; 2]; 256],
             history: [[[0; 64]; 6]; 2],
@@ -279,6 +336,7 @@ impl SearchData {
             qnodecount: 0,
             tt,
             ord: default_ord,
+            timer: t,
         }
     }
     fn clear(&mut self) {
@@ -289,5 +347,16 @@ impl SearchData {
     }
     fn age_history(&mut self) {
         self.ord.age_history()
+    }
+}
+
+const fn mate_score(ply: u16, starting_ply: u8) -> i16 {
+    -CHECKMATE + (ply as i16 - starting_ply as i16)
+}
+const fn mated_in(score: i16) -> i16 {
+    if score.is_positive() {
+        CHECKMATE - score
+    } else {
+        -CHECKMATE - score
     }
 }
