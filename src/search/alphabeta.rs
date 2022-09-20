@@ -86,6 +86,7 @@ impl SearchControl {
             }
         }
         println!("bestmove {}", bestmove.to_algebraic());
+        self.searchdata.timer.refresh();
     }
 
     pub fn reset(&mut self) {
@@ -99,7 +100,6 @@ impl SearchControl {
         self.searchdata.age_history();
         self.searchdata.nodecount = 0;
         self.searchdata.qnodecount = 0;
-       
     }
 
     pub fn get_recv(&self) -> Option<Control> {

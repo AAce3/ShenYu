@@ -9,10 +9,10 @@ use std::{
 use crate::{
     board_state::{
         board::Board,
-        typedefs::{Square, BISHOP, KNIGHT, QUEEN, ROOK, WHITE},
+        typedefs::{Square, BISHOP, KNIGHT, QUEEN, ROOK, WHITE, BLACK},
     },
     move_generation::{action::Action, makemove::PROMOTION},
-    search::{alphabeta::SearchControl, timer::Timer},
+    search::{alphabeta::SearchControl, timer::Timer, transposition::TranspositionTable},
 };
 use crate::{go_next, send};
 
@@ -24,6 +24,7 @@ pub struct Communicator {
 pub enum Control {
     Go,
     Stop,
+    Quit,
     Reset,
     WTimeSet(u64),
     BTimeSet(u64),
@@ -44,15 +45,18 @@ pub enum OptionType {
 impl SearchControl {
     pub fn parse_commands(&mut self) {
         loop {
-            self.searchdata.timer.refresh();
             let data = self.get_recv();
             if let Some(msg) = data {
                 match msg {
                     Control::Go => {
                         self.go_search();
+                        
                     }
                     Control::Stop => {
                         self.searchdata.timer.stopped = true;
+                    }
+                    Control::Quit => {
+                        return;
                     }
                     Control::Reset => {
                         self.reset();
@@ -60,18 +64,25 @@ impl SearchControl {
                     Control::WTimeSet(time) => if self.curr_board.tomove == WHITE {
                         self.searchdata.timer.time_alloted = time;
                     },
-                    Control::BTimeSet(time) => todo!(),
-                    Control::IsTimedW(istimed) => todo!(),
-                    Control::IsTimedB(istimed) => todo!(),
-                    Control::NodeSet(maxnodes) => todo!(),
-                    Control::DepthSet(maxdepth) => todo!(),
-                    Control::SetBoard(board) => todo!(),
+                    Control::BTimeSet(time) => if self.curr_board.tomove == BLACK {
+                        self.searchdata.timer.time_alloted = time;
+                    },
+                    Control::IsTimedW(istimed) => if self.curr_board.tomove == WHITE{
+                        self.searchdata.timer.is_timed = istimed
+                    },
+                    Control::IsTimedB(istimed) => if self.curr_board.tomove == BLACK{
+                        self.searchdata.timer.is_timed = istimed
+                    },
+                    Control::NodeSet(maxnodes) => self.searchdata.timer.max_nodes = maxnodes,
+                    Control::DepthSet(maxdepth) => self.searchdata.timer.maxdepth = maxdepth,
+                    Control::SetBoard(board) => self.curr_board = board,
                     Control::SetOption(option) => match option {
-                        OptionType::HashSet(_) => todo!(),
-                        OptionType::HashClear => todo!(),
+                        OptionType::HashSet(num) => self.searchdata.tt = TranspositionTable::new(num),
+                        OptionType::HashClear => self.searchdata.tt.clear(),
                     },
                 }
             }
+            thread::sleep(Duration::from_millis(1));
         }
     }
 }
@@ -99,11 +110,12 @@ impl Communicator {
                     send!(self, stop);
                 }
                 "quit" => {
-                    let stop = Control::Stop;
-                    send!(self, stop);
+                    let quit = Control::Quit;
+                    send!(self, quit);
                 }
                 _ => go_next!(),
             }
+            thread::sleep(Duration::from_millis(1));
         }
     }
     pub fn identify() {
@@ -256,7 +268,6 @@ impl Communicator {
         let istimed_w = w_best_time < 500_000;
         if istimed_w {
             let time = Control::WTimeSet(w_best_time);
-
             send!(self, time);
         }
         let istimemsg = Control::IsTimedW(istimed_w);

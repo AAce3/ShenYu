@@ -1,10 +1,12 @@
 
 
+use std::{thread, sync::mpsc};
+
 use shenyu::{
     board_state::{board::Board},
     search::{
         alphabeta::{SearchData, SearchControl}, timer::Timer,
-    }, uci::{spawn_stdin_channel, Communicator},
+    }, uci::{Communicator, Control},
 };
 
 fn main() {
@@ -20,8 +22,13 @@ fn main() {
         curr_board: newb,
     };
     let mut comm = Communicator{
-
         comm: None,
     };
-
+    let (tx, rx) = mpsc::channel::<Control>();
+    control.searchdata.message_recv = Some(rx);
+    comm.comm = Some(tx);
+    thread::spawn(move || {
+        control.parse_commands();
+    });
+    comm.parse_commands();
 }
