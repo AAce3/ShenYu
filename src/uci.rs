@@ -1,59 +1,110 @@
 use std::{
     cmp,
     io::{self, stdin},
-    sync::{
-        mpsc::{self, Receiver, Sender},
-
-    },
+    sync::mpsc::{self, Receiver, Sender},
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crate::{
     board_state::{
         board::Board,
-        typedefs::{Square, BISHOP, BLACK, KNIGHT, QUEEN, ROOK, WHITE},
+        typedefs::{Square, BISHOP, KNIGHT, QUEEN, ROOK, WHITE},
     },
     move_generation::{action::Action, makemove::PROMOTION},
     search::{alphabeta::SearchControl, timer::Timer},
 };
-use crate::{go_next, search::transposition::TranspositionTable};
+use crate::{go_next, send};
 
 pub struct Communicator {
-    pub search: SearchControl,
-    pub comm: Option<Sender<bool>>,
+    pub comm: Option<Sender<Control>>,
 }
 
-impl Communicator {
-    pub fn parse_commands(&'static mut self) {
-        let mut cmd = String::new();
-        let channel = mpsc::channel::<bool>();
-        self.comm = Some(channel.0);
-        self.search.searchdata.timer.recv = Some(channel.1);
-        thread::spawn(move || {
-            loop {
-            
-                cmd.clear();
-                stdin().read_line(&mut cmd).unwrap();
-                let cmd = cmd.clone();
-                let first_word = cmd.split(' ').next().unwrap_or(&cmd);
-    
-                match first_word {
-                    "uci" => Self::identify(),
-                    "setoption" => self.parse_options(cmd),
-                    "isready" => println!("readyok"),
-                    "ucinewgame" => self.search.reset(),
-                    "position" => self.parse_position(cmd),
-                    "go" => self.go(cmd),
-                    "stop" => self.comm.as_ref().unwrap().send(true).unwrap(),
-                    "quit" => return,
-                    _ => go_next!(),
+#[derive(PartialEq, Eq)]
+pub enum Control {
+    Go,
+    Stop,
+    Reset,
+    WTimeSet(u64),
+    BTimeSet(u64),
+    IsTimedW(bool),
+    IsTimedB(bool),
+    NodeSet(u64),
+    DepthSet(u8),
+    SetBoard(Board),
+    SetOption(OptionType),
+}
+
+#[derive(PartialEq, Eq)]
+pub enum OptionType {
+    HashSet(usize),
+    HashClear,
+}
+
+impl SearchControl {
+    pub fn parse_commands(&mut self) {
+        loop {
+            self.searchdata.timer.refresh();
+            let data = self.get_recv();
+            if let Some(msg) = data {
+                match msg {
+                    Control::Go => {
+                        self.go_search();
+                    }
+                    Control::Stop => {
+                        self.searchdata.timer.stopped = true;
+                    }
+                    Control::Reset => {
+                        self.reset();
+                    }
+                    Control::WTimeSet(time) => if self.curr_board.tomove == WHITE {
+                        self.searchdata.timer.time_alloted = time;
+                    },
+                    Control::BTimeSet(time) => todo!(),
+                    Control::IsTimedW(istimed) => todo!(),
+                    Control::IsTimedB(istimed) => todo!(),
+                    Control::NodeSet(maxnodes) => todo!(),
+                    Control::DepthSet(maxdepth) => todo!(),
+                    Control::SetBoard(board) => todo!(),
+                    Control::SetOption(option) => match option {
+                        OptionType::HashSet(_) => todo!(),
+                        OptionType::HashClear => todo!(),
+                    },
                 }
+            }
         }
     }
-        );
-        
-        
+}
+impl Communicator {
+    pub fn parse_commands(&mut self) {
+        let mut cmd = String::new();
+        loop {
+            cmd.clear();
+            stdin().read_line(&mut cmd).unwrap();
+            let cmd = cmd.clone();
+            let first_word = cmd.split(' ').next().unwrap_or(&cmd);
+
+            match first_word {
+                "uci\n" => Self::identify(),
+                "setoption" => self.parse_options(cmd),
+                "isready" => println!("readyok"),
+                "ucinewgame" => {
+                    let reset = Control::Reset;
+                    send!(self, reset);
+                }
+                "position" => self.parse_position(cmd),
+                "go" => self.go(cmd),
+                "stop" => {
+                    let stop = Control::Stop;
+                    send!(self, stop);
+                }
+                "quit" => {
+                    let stop = Control::Stop;
+                    send!(self, stop);
+                }
+                _ => go_next!(),
+            }
+        }
     }
     pub fn identify() {
         println!("id name ShenYu");
@@ -70,11 +121,16 @@ impl Communicator {
             "Hash Size" => {
                 let next = split.next().unwrap_or("");
                 if let Ok(size) = str::parse::<usize>(next) {
-                    self.search.searchdata.tt = TranspositionTable::new(size)
+                    let option = Control::SetOption(OptionType::HashSet(size));
+                    send!(self, option);
                 }
             }
             "Clear Hash" => {
-                self.search.searchdata.tt.clear();
+                self.comm
+                    .as_ref()
+                    .unwrap()
+                    .send(Control::SetOption(OptionType::HashClear))
+                    .unwrap();
             }
             _ => (),
         }
@@ -86,8 +142,9 @@ impl Communicator {
         match input_type {
             "fen" => {
                 if let Some(fen) = split.next() {
-                    if let Ok(nextb) = Board::parse_fen(fen) {
-                        self.search.curr_board = nextb;
+                    if let Ok(newb) = Board::parse_fen(fen) {
+                        let board = Control::SetBoard(newb);
+                        send!(self, board);
                     }
                 }
             }
@@ -101,15 +158,18 @@ impl Communicator {
                         Err(_) => break,
                     }
                 }
-                self.search.curr_board = newb
+                let board = Control::SetBoard(newb);
+                send!(self, board);
             }
             _ => (),
         }
     }
 
     pub fn go(&mut self, cmd: String) {
-        let mut mytime = u64::MAX;
-        let mut myinc = u64::MAX;
+        let mut wtime = u64::MAX;
+        let mut winc = u64::MAX;
+        let mut btime = u64::MAX;
+        let mut binc = u64::MAX;
         let mut maxdepth = u8::MAX;
         let mut maxnodes = u64::MAX;
         let mut maxtime = u64::MAX;
@@ -147,31 +207,27 @@ impl Communicator {
                         curr_type = Type::Infinite;
                     }
                     Type::WTime => {
-                        if self.search.curr_board.tomove == WHITE {
-                            let num = str::parse::<u64>(part).unwrap_or(0);
-                            mytime = num;
-                        }
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        wtime = num;
+
                         curr_type = Type::Infinite;
                     }
                     Type::BTime => {
-                        if self.search.curr_board.tomove == BLACK {
-                            let num = str::parse::<u64>(part).unwrap_or(0);
-                            mytime = num;
-                        }
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        btime = num;
+
                         curr_type = Type::Infinite;
                     }
                     Type::WInc => {
-                        if self.search.curr_board.tomove == WHITE {
-                            let num = str::parse::<u64>(part).unwrap_or(0);
-                            myinc = num;
-                        }
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        winc = num;
+
                         curr_type = Type::Infinite;
                     }
                     Type::BInc => {
-                        if self.search.curr_board.tomove == BLACK {
-                            let num = str::parse::<u64>(part).unwrap_or(0);
-                            myinc = num;
-                        }
+                        let num = str::parse::<u64>(part).unwrap_or(0);
+                        binc = num;
+
                         curr_type = Type::Infinite;
                     }
                     Type::MovesToGo => {
@@ -196,17 +252,32 @@ impl Communicator {
                 },
             }
         }
-        let best_time = cmp::min(Timer::allocate_time(mytime, myinc), maxtime);
-        let istimed = best_time < 500_000;
-        self.search.searchdata.timer.time_alloted = best_time;
-        self.search.searchdata.timer.max_nodes = maxnodes;
-        self.search.searchdata.timer.maxdepth = maxdepth;
-        self.search.searchdata.timer.start_time = Instant::now();
-        self.search.searchdata.timer.is_timed = istimed;
-        self.search.searchdata.timer.stopped = false;
-        self.search.searchdata.timer.time_alloted = best_time;
-       
-        self.search.go_search();
+        let w_best_time = cmp::min(Timer::allocate_time(wtime, winc), maxtime);
+        let istimed_w = w_best_time < 500_000;
+        if istimed_w {
+            let time = Control::WTimeSet(w_best_time);
+
+            send!(self, time);
+        }
+        let istimemsg = Control::IsTimedW(istimed_w);
+        send!(self, istimemsg);
+
+        let b_best_time = cmp::min(Timer::allocate_time(btime, binc), maxtime);
+        let istimed_b = b_best_time < 500_000;
+        if istimed_b {
+            let time = Control::BTimeSet(b_best_time);
+            send!(self, time);
+        }
+        let istimemsg = Control::IsTimedB(istimed_b);
+        send!(self, istimemsg);
+
+        let maxnodes_msg = Control::NodeSet(maxnodes);
+        send!(self, maxnodes_msg);
+
+        let maxdepth_msg = Control::DepthSet(maxdepth);
+        send!(self, maxdepth_msg);
+        let go = Control::Go;
+        send!(self, go);
     }
 }
 
@@ -216,6 +287,12 @@ macro_rules! go_next {
         thread::sleep(Duration::from_millis(10));
         continue;
     }};
+}
+#[macro_export]
+macro_rules! send {
+    ($from:ident, $msg:ident) => {
+        ($from).comm.as_ref().unwrap().send($msg).unwrap();
+    };
 }
 pub fn spawn_stdin_channel() -> Receiver<String> {
     let (tx, rx) = mpsc::channel::<String>();

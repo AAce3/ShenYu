@@ -20,8 +20,8 @@ fn main() {
         curr_board: newb,
     };
     let mut comm = Communicator{
-        search: control,
+
         comm: None,
     };
-    comm.parse_commands();
+
 }

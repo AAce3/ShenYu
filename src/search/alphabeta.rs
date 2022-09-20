@@ -1,11 +1,16 @@
-use std::{cmp, time::Instant};
+use std::{
+    cmp,
+    sync::mpsc::{Receiver, TryRecvError},
+    time::Instant,
+};
 
 use crate::{
     board_state::board::Board,
     move_generation::{
         action::{Action, Move},
         list::List,
-    }, 
+    },
+    uci::Control,
 };
 
 use super::{
@@ -23,15 +28,8 @@ pub struct SearchControl {
 
 impl SearchControl {
     pub fn go_search(&mut self) {
-        let timer = Instant::now();
-        if self.searchdata.timer.is_timed {
-            self.searchdata.timer.start_time = Instant::now();
-        }
-
-        self.searchdata.age_history();
-        self.searchdata.nodecount = 0;
-        self.searchdata.qnodecount = 0;
-        self.searchdata.timer.stopped = false;
+        let global_time = Instant::now();
+        self.refresh();
         let mut bestmove = 0;
         let mut pv = List::new();
         let mut depth = 0;
@@ -67,7 +65,7 @@ impl SearchControl {
                 scoretype = "mate";
                 reported_score = mated_in(score).div_ceil(2)
             }
-            let elapsed = timer.elapsed().as_millis() as u64;
+            let elapsed = global_time.elapsed().as_millis() as u64;
 
             let nps = if elapsed == 0 {
                 0
@@ -96,6 +94,21 @@ impl SearchControl {
         self.searchdata.clear();
         self.curr_ply = 0;
     }
+
+    pub fn refresh(&mut self) {
+        self.searchdata.age_history();
+        self.searchdata.nodecount = 0;
+        self.searchdata.qnodecount = 0;
+       
+    }
+
+    pub fn get_recv(&self) -> Option<Control> {
+        match self.searchdata.message_recv.as_ref().unwrap().try_recv() {
+            Ok(key) => Some(key),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
+        }
+    }
 }
 
 impl Board {
@@ -122,7 +135,12 @@ impl Board {
             data.timer.stopped = true;
         }
         if data.timer.is_timed && data.nodecount % 4096 == 0 {
-            data.timer.stopped = data.timer.check_time() || data.timer.stopped;
+            let has_msg = match data.message_recv.as_ref().unwrap().try_recv() {
+                Ok(key) => key == Control::Stop,
+                Err(TryRecvError::Empty) => false,
+                Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
+            };
+            data.timer.stopped = data.timer.check_time() || has_msg || data.timer.stopped;
         }
 
         if data.timer.stopped {
@@ -322,6 +340,7 @@ pub struct SearchData {
     pub tt: TranspositionTable,
     pub ord: OrderData,
     pub timer: Timer,
+    pub message_recv: Option<Receiver<Control>>,
 }
 
 impl SearchData {
@@ -337,6 +356,7 @@ impl SearchData {
             tt,
             ord: default_ord,
             timer: t,
+            message_recv: None,
         }
     }
     fn clear(&mut self) {
