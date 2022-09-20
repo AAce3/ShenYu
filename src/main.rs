@@ -13,8 +13,8 @@ fn main() {
 
 
     let newb =
-        Board::parse_fen("2q1Rk1r/5p2/1ppp1P2/6Pp/3p1B2/3P3P/PPP1Q3/6K1 b - - 0 1").unwrap();
-    let mut newdata = SearchData::new(Timer::new());
+        Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+    let newdata = SearchData::new(Timer::new());
 
     let mut control = SearchControl{
         searchdata: newdata,

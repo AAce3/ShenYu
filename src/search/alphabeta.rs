@@ -30,6 +30,7 @@ impl SearchControl {
     pub fn go_search(&mut self) {
         let global_time = Instant::now();
         self.refresh();
+        self.searchdata.timer.start_time = Instant::now();
         let mut bestmove = 0;
         let mut pv = List::new();
         let mut depth = 0;
@@ -134,13 +135,18 @@ impl Board {
         if data.nodecount >= data.timer.max_nodes {
             data.timer.stopped = true;
         }
-        if data.timer.is_timed && data.nodecount % 4096 == 0 {
+
+        let checknodes = data.nodecount % 4096 == 0;
+        if checknodes {
             let has_msg = match data.message_recv.as_ref().unwrap().try_recv() {
                 Ok(key) => key == Control::Stop,
                 Err(TryRecvError::Empty) => false,
                 Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
             };
-            data.timer.stopped = data.timer.check_time() || has_msg || data.timer.stopped;
+            data.timer.stopped = has_msg || data.timer.stopped;
+        }
+        if data.timer.is_timed && checknodes {
+            data.timer.stopped = data.timer.check_time() || data.timer.stopped;
         }
 
         if data.timer.stopped {
@@ -299,7 +305,16 @@ impl Board {
         if data.nodecount >= data.timer.max_nodes {
             data.timer.stopped = true;
         }
-        if data.timer.is_timed && data.nodecount % 4096 == 0 {
+        let checknodes = data.nodecount % 4096 == 0;
+        if checknodes {
+            let has_msg = match data.message_recv.as_ref().unwrap().try_recv() {
+                Ok(key) => key == Control::Stop,
+                Err(TryRecvError::Empty) => false,
+                Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
+            };
+            data.timer.stopped = has_msg || data.timer.stopped;
+        }
+        if data.timer.is_timed && checknodes {
             data.timer.stopped = data.timer.check_time() || data.timer.stopped;
         }
         if data.timer.stopped {
