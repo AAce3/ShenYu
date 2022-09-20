@@ -1,5 +1,6 @@
 use std::{
     cmp,
+    fmt::Write,
     sync::mpsc::{Receiver, TryRecvError},
     time::Instant,
 };
@@ -51,13 +52,14 @@ impl SearchControl {
             if self.searchdata.timer.stopped {
                 break;
             }
+            bestmove = pv[0];
             if score <= alpha || score >= beta {
                 beta = CHECKMATE;
                 alpha = -CHECKMATE;
                 depth -= 1;
                 continue;
             }
-            bestmove = pv[0];
+            
             alpha = cmp::max(score - 35, -CHECKMATE);
             beta = cmp::min(score + 35, CHECKMATE);
             let mut scoretype = "score cp";
@@ -67,24 +69,28 @@ impl SearchControl {
                 reported_score = mated_in(score).div_ceil(2)
             }
             let elapsed = global_time.elapsed().as_millis() as u64;
-
+            
             let nps = if elapsed == 0 {
                 0
             } else {
                 self.searchdata.nodecount * 1000 / elapsed
             };
 
-            print!(
-                "info depth {} {} {} nodes {} nps {} time {} pv",
-                depth, scoretype, reported_score, self.searchdata.nodecount, nps, elapsed
+            println!(
+                "info depth {} {} {} nodes {} nps {} pv{}",
+                depth,
+                scoretype,
+                reported_score,
+                self.searchdata.nodecount,
+                nps,
+                format_pv(&pv)
             );
-            for i in 0..pv.length {
-                print!(" {}", pv[i as usize].to_algebraic());
-            }
-            println!();
-            if depth >= self.searchdata.timer.maxdepth {
+
+            if depth >= self.searchdata.timer.maxdepth || elapsed * 3 > self.searchdata.timer.time_alloted{
                 break;
             }
+
+           
         }
         println!("bestmove {}", bestmove.to_algebraic());
         self.searchdata.timer.refresh();
@@ -112,6 +118,14 @@ impl SearchControl {
     }
 }
 
+fn format_pv(pv: &List<Move>) -> String {
+    let mut starting_str = String::new();
+    for i in 0..pv.length {
+        let thing = pv[i as usize].to_algebraic();
+        write!(&mut starting_str, " {}", thing).unwrap();
+    }
+    starting_str
+}
 impl Board {
     #[allow(clippy::too_many_arguments)]
     pub fn negamax<const ISROOT: bool>(
@@ -245,7 +259,9 @@ impl Board {
                     );
                 }
             }
-
+            if data.timer.stopped {
+                return 0;
+            }
             if score > best_score {
                 best_score = score;
                 best_pvline = newpvline;

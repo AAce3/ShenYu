@@ -1,3 +1,4 @@
+
 use std::{
     cmp,
     io::{self, stdin},
@@ -131,10 +132,8 @@ impl Communicator {
     pub fn identify() {
         println!("id name ShenYu");
         println!("id author Aaron Li");
-        println!();
         println!("option name Hash Size type spin default 32 min 1 max 8192");
         println!("option name Clear Hash type button");
-        println!();
         println!("uciok");
     }
 
@@ -161,7 +160,7 @@ impl Communicator {
     }
 
     pub fn parse_position(&mut self, cmd: String) {
-        let mut split = cmd.split(' ');
+        let mut split = cmd.split_whitespace();
         let input_type = split.nth(1).unwrap_or("");
         match input_type {
             "fen" => {
@@ -177,12 +176,12 @@ impl Communicator {
                     Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
                         .unwrap();
                 for i in split {
-                    if i == "moves"{
+                    if i == "moves" {
                         continue;
                     }
                     match newb.do_input_move(i.to_owned()) {
                         Ok(board) => newb = board,
-                        Err(_) => break,
+                        Err(_) => panic!("What"),
                     }
                 }
                 let board = Control::SetBoard(newb);

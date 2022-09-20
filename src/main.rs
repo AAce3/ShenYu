@@ -26,6 +26,7 @@ fn main() {
     };
     let (tx, rx) = mpsc::channel::<Control>();
     control.searchdata.message_recv = Some(rx);
+    println!("Shen Yu by Aaron Li");
     comm.comm = Some(tx);
     thread::spawn(move || {
         control.parse_commands();
