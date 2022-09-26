@@ -29,7 +29,8 @@ impl Timer {
     }
     pub fn allocate_time(timeleft: u64, inc: u64) -> u64 {
         let cannot_exceed = cmp::max(timeleft / 8, 1); // avoid allocating more than 1/8 of the time to avoid time pressure
-        let timeleft = (timeleft / 30) + inc / 2;
+        
+        let timeleft = (timeleft / 35) + inc / 4;
         cmp::min(timeleft, cannot_exceed)
     }
 
