@@ -17,6 +17,11 @@ impl TranspositionTable {
     pub fn new(size: usize) -> Self {
         // size is in MB
         let entries = size * CONVERSION;
+        if entries == 0{
+            return Self{
+                table: vec![Entry::new(); 1]
+            }
+        }
         Self {
             table: vec![Entry::new(); entries],
         }
@@ -36,7 +41,7 @@ type NodeType = u8;
 pub const NULL: NodeType = 0;
 pub const BETA: NodeType = 0b10;
 pub const EXACT: NodeType = 0b11;
-pub const LEAF: NodeType = 0b01;
+pub const ALPHA: NodeType = 0b01;
 #[derive(Clone, Copy)]
 #[repr(align(16))]
 pub struct Entry {
