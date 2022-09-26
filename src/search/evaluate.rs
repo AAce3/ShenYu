@@ -170,42 +170,6 @@ const EG_TABLES: [[i16; 64]; 6] = [EG_PAWN, EG_KNIGHT, EG_BISHOP, EG_ROOK, EG_QU
 // Phase is calculated by material
 
 impl Board {
-    pub fn do_eval(&self) -> i16 {
-        let mut white_mg_material = 0;
-        let mut black_mg_material = 0;
-        let mut white_eg_material = 0;
-        let mut black_eg_material = 0;
-
-        let mut phase = 0;
-        let whites = self[WHITE];
-        let blacks = self[BLACK];
-        for (piecetype, bb) in self.pieces.iter().enumerate() {
-            let mut white_pieces = bb & whites;
-            let mut black_pieces = bb & blacks;
-            while white_pieces > 0 {
-                let square = white_pieces.pop_lsb().flip();
-                let mg_value = MG_TABLES[piecetype as usize][square as usize];
-                let eg_value = EG_TABLES[piecetype as usize][square as usize];
-                white_mg_material += mg_value;
-                white_eg_material += eg_value;
-                phase += PHASES[piecetype as usize];
-            }
-            while black_pieces > 0 {
-                let square = black_pieces.pop_lsb();
-                let mg_value = MG_TABLES[piecetype as usize][square as usize];
-                let eg_value = EG_TABLES[piecetype as usize][square as usize];
-                black_mg_material += mg_value;
-                black_eg_material += eg_value;
-                phase += PHASES[piecetype as usize]; 
-            }
-        }
-
-        let mg_score = white_mg_material as i32 - black_mg_material as i32;
-        let eg_score = white_eg_material as i32 - black_eg_material as i32;
-        let mg_phase = cmp::min(phase, TOTAL_PHASE) as i32;
-        let eg_phase = cmp::max(TOTAL_PHASE as i32 - mg_phase, 0) as i32;
-        (((mg_score * mg_phase).checked_add(eg_score * eg_phase).unwrap()) / (TOTAL_PHASE as i32)) as i16
-    }
     pub fn generate_eval(&self) -> IncrementalEval {
         let mut white_mg_material = 0;
         let mut black_mg_material = 0;
