@@ -13,9 +13,32 @@ use crate::{
         typedefs::{Square, BISHOP, BLACK, KNIGHT, QUEEN, ROOK, WHITE},
     },
     move_generation::{action::Action, makemove::PROMOTION},
-    search::{alphabeta::SearchControl, timer::Timer, transposition::TranspositionTable},
+    search::{alphabeta::{SearchControl, SearchData}, timer::Timer, transposition::TranspositionTable},
 };
 use crate::{go_next, send};
+
+pub fn gameloop(){
+    let newb =
+        Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+    let newdata = SearchData::new(Timer::new());
+
+    let mut control = SearchControl{
+        searchdata: newdata,
+        curr_ply: 0,
+        curr_board: newb,
+    };
+    let mut comm = Communicator{
+        comm: None,
+    };
+    let (tx, rx) = mpsc::channel::<Control>();
+    control.searchdata.message_recv = Some(rx);
+    println!("Shen Yu by Aaron Li");
+    comm.comm = Some(tx);
+    thread::spawn(move || {
+        control.parse_commands();
+    });
+    comm.parse_commands();
+}
 
 pub struct Communicator {
     pub comm: Option<Sender<Control>>,
@@ -27,6 +50,7 @@ pub enum Control {
     Stop,
     Quit,
     Reset,
+    Show,
     WTimeSet(u64),
     BTimeSet(u64),
     IsTimedW(bool),
@@ -90,6 +114,9 @@ impl SearchControl {
                         }
                         OptionType::HashClear => self.searchdata.tt.clear(),
                     },
+                    Control::Show => {
+                        println!("{}", self.curr_board);
+                    },
                 }
             }
             thread::sleep(Duration::from_millis(1));
@@ -124,6 +151,10 @@ impl Communicator {
                     send!(self, quit);
                     break;
                 }
+                "show" => {
+                    let show = Control::Show;
+                    send!(self, show);
+                }
                 _ => go_next!(),
             }
             thread::sleep(Duration::from_millis(1));
@@ -132,7 +163,7 @@ impl Communicator {
     pub fn identify() {
         println!("id name ShenYu");
         println!("id author Aaron Li");
-        println!("option name Hash Size type spin default 32 min 1 max 8192");
+        println!("option name Hash type spin default 32 min 0 max 8192");
         println!("option name Clear Hash type button");
         println!("uciok");
     }
@@ -141,7 +172,7 @@ impl Communicator {
         let mut split = options.split(' ');
         let optiontype = split.nth(2).unwrap_or("");
         match optiontype {
-            "Hash Size" => {
+            "Hash" => {
                 let next = split.next().unwrap_or("");
                 if let Ok(size) = str::parse::<usize>(next) {
                     let option = Control::SetOption(OptionType::HashSet(size));
