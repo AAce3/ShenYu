@@ -20,7 +20,7 @@ pub struct Zobrist {
     pub active_color: ZobristKey,
 }
 
-const SEED: [u8; 32] = [133; 32];
+const SEED: [u8; 32] = [125; 32];
 
 impl Default for Zobrist {
     fn default() -> Self {
