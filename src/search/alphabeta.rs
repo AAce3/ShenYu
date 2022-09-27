@@ -184,7 +184,7 @@ impl Board {
             };
 
             // if we can use the score, then return that.
-            if ply as u8 - starting_ply >= 3 && tt_data.get_depth() >= depth && shoulduse {
+            if !ISROOT && tt_data.get_depth() >= depth && shoulduse {
                 if mated_in(score) < 64 && mated_in(score) > -64 {
                     if score.is_positive() {
                         return score - (ply as i16 - starting_ply as i16);
