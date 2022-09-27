@@ -67,12 +67,12 @@ impl SearchControl {
             };
 
             println!(
-                "info depth {} score {} {} nodes {} qnodes {} nps {} time {} pv{}",
+                "info depth {} score {} {} nodes {} nps {} time {} pv{}",
                 depth,
                 scoretype,
                 reported_score,
                 self.searchdata.nodecount,
-                self.searchdata.qnodecount,
+ 
                 nps,
                 elapsed,
                 format_pv(&pv)
@@ -159,7 +159,7 @@ impl Board {
         if depth == 0 {
             // If we are at zero depth, Q-search will allow us to evaluate a quiet position for accurate results
             data.nodecount -= 1;
-            let qvalue = self.quiesce(alpha, beta, 0, data, pvline);
+            let qvalue = self.quiesce(alpha, beta, 0, data);
             if data.timer.stopped {
                 return 0;
             } else {
@@ -333,7 +333,7 @@ impl Board {
         beta: i16,
         ply: u16,
         data: &mut SearchData,
-        pv: &mut List<Move>,
+
     ) -> i16 {
         data.qnodecount += 1;
         data.nodecount += 1;
@@ -368,25 +368,22 @@ impl Board {
         }
 
         let captures = MovePicker::new_capturepicker(self, &data.ord);
-        let mut best_pv = List::new();
+
         for action in captures {
-            let mut newpv = List::new();
-            newpv.push(action);
+
             let newb = self.do_move(action);
             
-            let score = -newb.quiesce(-beta, -alpha, ply + 1, data, &mut newpv);
+            let score = -newb.quiesce(-beta, -alpha, ply + 1, data);
 
             if score > alpha {
                 alpha = score;
-                best_pv = newpv;
+
                 if score >= beta {
                     break;
                 }
             }
         }
-        for i in 0..best_pv.length {
-            pv.push(best_pv[i as usize]);
-        }
+  
 
         alpha
     }
