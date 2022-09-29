@@ -113,6 +113,7 @@ impl Board {
         board.swap_sides();
         
         board.set_castling_rights(board.update_castlerights());
+        board.desync();
         board
     }
 }
