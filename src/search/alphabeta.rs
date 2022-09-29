@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    board_state::board::Board,
+    board_state::{board::Board, zobrist::ZobristKey},
     move_generation::{
         action::{Action, Move},
         list::List,
@@ -72,7 +72,6 @@ impl SearchControl {
                 scoretype,
                 reported_score,
                 self.searchdata.nodecount,
- 
                 nps,
                 elapsed,
                 format_pv(&pv)
@@ -121,8 +120,8 @@ fn format_pv(pv: &List<Move>) -> String {
 impl Board {
     #[allow(clippy::too_many_arguments)]
     pub fn negamax<const ISROOT: bool>(
-        &self,
-        depth: u8,
+        &mut self,
+        mut depth: u8,
         mut alpha: i16,
         beta: i16,
         data: &mut SearchData,
@@ -155,7 +154,10 @@ impl Board {
         if data.timer.stopped {
             return 0;
         }
-
+        let incheck = self.incheck(self.tomove);
+        if incheck {
+            depth += 1;
+        }
         if depth == 0 {
             // If we are at zero depth, Q-search will allow us to evaluate a quiet position for accurate results
             data.nodecount -= 1;
@@ -165,7 +167,6 @@ impl Board {
             } else {
                 return qvalue;
             }
-
         }
 
         let mut bestmove = 0;
@@ -216,14 +217,14 @@ impl Board {
         let mut stored_move = false;
         let mut num_moves = 0;
         let mut raised_alpha = false;
-        
+
         for action in moves_generated {
             // Initialize a child PV line
             let mut newpvline = List::new();
             newpvline.push(action);
             let mut score: i16;
 
-            let newb = self.do_move(action);
+            let mut newb = self.do_move(action);
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
             if (ispv && num_moves == 0) || (depth <= 3) {
                 score = -newb.negamax::<false>(
@@ -313,7 +314,6 @@ impl Board {
             }
         }
         if num_moves == 0 {
-            let incheck = self.incheck(self.tomove);
             if incheck {
                 return mate_score(ply, starting_ply);
             } else {
@@ -327,14 +327,7 @@ impl Board {
         best_score
     }
 
-    pub fn quiesce(
-        &self,
-        mut alpha: i16,
-        beta: i16,
-        ply: u16,
-        data: &mut SearchData,
-
-    ) -> i16 {
+    pub fn quiesce(&mut self, mut alpha: i16, beta: i16, ply: u16, data: &mut SearchData) -> i16 {
         data.qnodecount += 1;
         data.nodecount += 1;
         if data.nodecount >= data.timer.max_nodes {
@@ -353,7 +346,6 @@ impl Board {
             data.timer.stopped = data.timer.check_time() || data.timer.stopped;
         }
 
-        
         if data.timer.stopped {
             return 0;
         }
@@ -370,9 +362,8 @@ impl Board {
         let captures = MovePicker::new_capturepicker(self, &data.ord);
 
         for action in captures {
+            let mut newb = self.do_move(action);
 
-            let newb = self.do_move(action);
-            
             let score = -newb.quiesce(-beta, -alpha, ply + 1, data);
 
             if score > alpha {
@@ -383,7 +374,6 @@ impl Board {
                 }
             }
         }
-  
 
         alpha
     }
@@ -396,8 +386,13 @@ pub struct SearchData {
     pub ord: OrderData,
     pub timer: Timer,
     pub message_recv: Option<Receiver<Control>>,
+    
 }
 
+pub struct GameHistory{
+    pub previous_zobrists: List<ZobristKey>,
+    pub last_retractable: usize,
+}
 impl SearchData {
     pub fn new(t: Timer) -> Self {
         let default_ord = OrderData {
@@ -412,6 +407,7 @@ impl SearchData {
             ord: default_ord,
             timer: t,
             message_recv: None,
+
         }
     }
     fn clear(&mut self) {
