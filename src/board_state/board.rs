@@ -7,7 +7,7 @@ use super::{
     typedefs::{Color, Piece, Square, BISHOP, BLACK, QUEEN, ROOK, WHITE},
     zobrist::{ZobristKey, ZOBRIST},
 };
-// Bitboards represent a boardstate in terms of a 64 bit integer. 
+// Bitboards represent a boardstate in terms of a 64 bit integer.
 // A 1 represents the presence of a piece at that square, a 0 represents an absence.
 // Board representation is one bitboard for each piece type (PNBRQK) and two color bitboards.
 
@@ -21,7 +21,11 @@ pub struct Board {
     pub castling_rights: u8, // KQkq
     pub halfmove_clock: u8,
     pub evaluator: IncrementalEval,
+    pub rook_pinmask: LazyMask,
+    pub bishop_pinmask: LazyMask,
+    pub movemask: LazyMask,
 }
+
 
 impl Default for Board {
     fn default() -> Self {
@@ -38,7 +42,19 @@ impl Board {
             passant_square: None,
             castling_rights: 0,
             halfmove_clock: 0,
-            evaluator: IncrementalEval::new()
+            evaluator: IncrementalEval::new(),
+            rook_pinmask: LazyMask {
+                mask: 0,
+                synced: false,
+            },
+            bishop_pinmask: LazyMask {
+                mask: 0,
+                synced: false,
+            },
+            movemask: LazyMask {
+                mask: 0,
+                synced: false,
+            },
         }
     }
     #[inline]
@@ -187,8 +203,43 @@ impl Board {
     }
 
     #[inline]
-    pub fn is_empty(&self, square: Square) -> bool{
+    pub fn is_empty(&self, square: Square) -> bool {
         self.get_occupancy() & Bitboard::new(square) == 0
+    }
+
+    pub fn desync(&mut self){
+        self.rook_pinmask.desync();
+        self.bishop_pinmask.desync();
+        self.movemask.desync();
+    }
+    pub fn get_rpinmask(&mut self) -> u64 {
+        if self.rook_pinmask.synced {
+            self.rook_pinmask.mask
+        } else {
+            self.rook_pinmask.synced = true;
+            self.rook_pinmask.mask = self.generate_rook_pins();
+            self.rook_pinmask.mask
+        }
+    }
+
+    pub fn get_bpinmask(&mut self) -> u64 {
+        if self.bishop_pinmask.synced {
+            self.bishop_pinmask.mask
+        } else {
+            self.bishop_pinmask.synced = true;
+            self.bishop_pinmask.mask = self.generate_bishop_pins();
+            self.bishop_pinmask.mask
+        }
+    }
+
+    pub fn get_movemask(&mut self) -> u64{
+        if self.movemask.synced{
+            self.movemask.mask
+        } else {
+            self.movemask.synced = true;
+            self.movemask.mask = self.check_for_legalmoves();
+            self.movemask.mask
+        }
     }
 }
 
@@ -218,5 +269,18 @@ impl Index<Color> for Board {
 
     fn index(&self, index: Color) -> &Self::Output {
         &self.colors[index as usize]
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct LazyMask {
+    pub mask: u64,
+    pub synced: bool,
+}
+
+impl LazyMask{
+    pub fn desync(&mut self){
+        self.mask = 0;
+        self.synced = false;
     }
 }

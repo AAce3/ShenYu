@@ -362,7 +362,7 @@ pub fn spawn_stdin_channel() -> Receiver<String> {
 }
 
 impl Board {
-    pub fn do_input_move(&self, movestring: String) -> Result<Board, u8> {
+    pub fn do_input_move(&mut self, movestring: String) -> Result<Board, u8> {
         let moves = self.generate_moves::<true, true>();
         let from = &movestring[..2];
         let to = &movestring[2..4];

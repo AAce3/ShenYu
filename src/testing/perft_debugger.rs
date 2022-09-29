@@ -127,7 +127,7 @@ struct MoveData {
 }
 
 impl Board {
-    fn debug_perft(&self, depth: u8) -> Vec<MoveData> {
+    fn debug_perft(&mut self, depth: u8) -> Vec<MoveData> {
         let moves = self.generate_moves::<true, true>();
         let mut newmove_vec = vec![
             MoveData {

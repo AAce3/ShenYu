@@ -29,7 +29,7 @@ pub fn perft_testing() {
             .replace(';', "")
             .parse::<u32>()
             .unwrap_or_else(|_| panic!("Bad result! Error on line {}", number));
-        let board =
+        let mut board =
             Board::parse_fen(fen).unwrap_or_else(|_| panic!("Bad fen! Error on line {}", number));
         let perftval = board.perft(depth);
         if perftval != result {
@@ -41,7 +41,7 @@ pub fn perft_testing() {
 }
 
 impl Board {
-    pub fn perft(&self, depth: u8) -> u32 {
+    pub fn perft(&mut self, depth: u8) -> u32 {
         if depth == 0 {
             1
         } else if depth == 1 {
@@ -52,14 +52,14 @@ impl Board {
             let moves = self.generate_moves::<true, true>();
             for i in 0..moves.length {
                 let action = moves[i as usize];
-                let newb = self.do_move(action);
+                let mut newb = self.do_move(action);
                 accum += newb.perft(depth - 1);
             }
             accum
         }
     }
 
-    pub fn divide_perft(&self, depth: u8) {
+    pub fn divide_perft(&mut self, depth: u8) {
         let moves = self.generate_moves::<true, true>();
 
         assert_ne!(depth, 0);
@@ -76,7 +76,7 @@ impl Board {
         println!("Elapsed: {}ms", then.as_millis());
     }
 
-    pub fn hashed_perft(&self, depth: u8, tt: &mut Vec<PerftEntry>) -> u32 {
+    pub fn hashed_perft(&mut self, depth: u8, tt: &mut Vec<PerftEntry>) -> u32 {
         if depth == 0 {
             1
         } else {
@@ -90,7 +90,7 @@ impl Board {
             let moves = self.generate_moves::<true, true>();
             for i in 0..moves.length {
                 let action = moves[i as usize];
-                let newb = self.do_move(action);
+                let mut newb = self.do_move(action);
                 accum += newb.hashed_perft(depth - 1, tt);
             }
             tt[idx].key = key;
