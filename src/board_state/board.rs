@@ -241,6 +241,10 @@ impl Board {
             self.movemask.mask
         }
     }
+
+    pub fn is_occupied(&self, square: Square) -> bool{
+        self.get_occupancy() & Bitboard::new(square) != 0
+    }
 }
 
 impl IndexMut<Piece> for Board {
