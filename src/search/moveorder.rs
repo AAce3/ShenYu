@@ -22,7 +22,7 @@ pub struct MovePicker {
 const CAPTURE_OFFSET: i16 = 20_000;
 const MAX_HISTORY: i16 = 18_000;
 impl MovePicker {
-    pub fn new(board: &Board, ttmove: u16, ord: &OrderData, ply: u16) -> MovePicker {
+    pub fn new(board: &mut Board, ttmove: u16, ord: &OrderData, ply: u16) -> MovePicker {
         let mut picker = MovePicker {
             movelist: board.generate_moves::<true, true>(),
             scorelist: List::new(),
@@ -32,7 +32,7 @@ impl MovePicker {
         picker
     }
 
-    pub fn new_capturepicker(board: &Board, ord: &OrderData) -> MovePicker {
+    pub fn new_capturepicker(board: &mut Board, ord: &OrderData) -> MovePicker {
         let mut picker = MovePicker {
             movelist: board.generate_moves::<false, true>(),
             scorelist: List::new(),
@@ -123,9 +123,9 @@ impl OrderData {
             }
         }
     }
-    pub fn clear(&mut self){
+    pub fn clear(&mut self) {
         self.history = [[[0; 64]; 6]; 2];
-        self.killers =  [[0; 2]; 256];
+        self.killers = [[0; 2]; 256];
     }
 }
 
@@ -135,4 +135,172 @@ impl Board {
         let attacker = action.piece_moved();
         SEEVALUES[victim as usize] - (SEEVALUES[attacker as usize] / 8)
     }
+}
+
+pub struct StagedGenerator<'a> {
+    pub ttmove: Move,
+    pub curr_stage: Stage,
+    captures: List<Move>,
+    capture_scores: List<i16>,
+    killers: [Move; 2],
+    losing_captures: List<Move>,
+    lcapture_scores: List<i16>,
+    quiets: List<Move>,
+    quiet_scores: List<i16>,
+    current_index: usize,
+    pub board: &'a mut Board,
+    ply: u16,
+}
+
+impl StagedGenerator<'_> {
+    pub fn next(&mut self, ord: &OrderData) -> Option<Move> {
+        match self.curr_stage {
+            Stage::TTMove => Some(self.ttmove), 
+            // if we have a ttmove, return it. TTmove is checked beforehand to make sure that hash code is valid
+            Stage::GenCaptures => {
+                self.captures = self.board.generate_moves::<false, true>();
+                self.capture_scores.length = self.captures.length;
+                for i in 0..self.captures.length {
+                    // score captures by mvv lva ordering
+                    // high value targets take priority, low value attackers slightly alter that
+                    let action = self.captures[i as usize];
+                    let score = self.board.order_capture(action);
+                    self.capture_scores[i as usize] = score;
+                }
+                // go to capture stage
+                self.curr_stage = Stage::Captures;
+                self.current_index = 0;
+                self.next(ord)
+            }
+            Stage::Captures => {
+                let ended = self.lazy_insertion_sort(); // swap the next best move to choose to the current index.
+                if ended {
+                    self.curr_stage = Stage::GenQuiets;
+                    self.current_index = 0;
+                    return self.next(ord);
+                }
+                let currbest = self.captures[self.current_index];
+                let seevalue = self.board.see(currbest);
+                // if the capture is a losing capture by SEE, put it on the losing captures list and skip it.
+                if seevalue < 0 {
+                    self.losing_captures.push(currbest);
+                    self.lcapture_scores.push(seevalue);
+                    self.current_index += 1;
+                    self.next(ord)
+                } else {
+                    self.current_index += 1;
+                    Some(currbest)
+                }
+            }
+            Stage::GenQuiets => {
+                self.quiets = self.board.generate_moves::<true, false>();
+                for i in 0..self.quiets.length {
+                    let action = self.quiets[i as usize];
+                    match action {
+                        // if they match the killers, store them
+                        action if action == ord.killers[self.ply as usize][0] => {
+                            self.killers[0] = action;
+                            // give them a really bad score so that they don't get sorted with the quiets.
+                            self.quiet_scores[i as usize] = i16::MIN;
+                        }
+                        action if action == ord.killers[self.ply as usize][1] => {
+                            self.killers[1] = action;
+                            self.quiet_scores[i as usize] = i16::MIN;
+                        }
+                        _ => {
+                            // otherwise, score them via history heuristic
+                            let score = ord.get_history(
+                                action.piece_moved(),
+                                self.board.tomove,
+                                action.move_to(),
+                            );
+                            self.quiet_scores[i as usize] = score;
+                        }
+                    }
+                }
+                self.curr_stage = Stage::Killers;
+                self.current_index = 0;
+                self.next(ord)
+            }
+            Stage::Killers => {
+                if self.current_index >= 2 {
+                    self.curr_stage = Stage::LCaptures;
+                    self.current_index = 0;
+                }
+                for (index, action) in self.killers.iter().skip(self.current_index).enumerate() {
+                    // loop through both killers. Check if they were stored.
+                    if *action != 0 {
+                        // if they were stored, immediately stop and return. Increment the index.
+                        self.current_index = index + 1;
+                        return Some(*action);
+                    }
+                }
+                // If none match, go to the next stage
+                self.curr_stage = Stage::LCaptures;
+                self.current_index = 0;
+                self.next(ord)
+            }
+            Stage::LCaptures => {
+                let ended = self.lazy_insertion_sort();
+                if ended {
+                    self.curr_stage = Stage::Quiets;
+                    self.current_index = 0;
+                    return self.next(ord);
+                }
+                let bestmove = self.losing_captures[self.current_index];
+                self.current_index += 1;
+                Some(bestmove)
+            }
+            Stage::Quiets => {
+                let ended = self.lazy_insertion_sort();
+                if ended {
+                    return None;
+                }
+                let bestmove = self.quiets[self.current_index];
+                if bestmove == self.killers[0] || bestmove == self.killers[1] { 
+                    // killers should be at the end, since we assigned them the worst score. 
+                    // If we get there, return immediately, as we have seen all possible moves.
+                    return None;
+                }
+                self.current_index += 1;
+                Some(bestmove)
+            }
+        }
+    }
+
+    // finds the next highest and places it at the current spot, returning true if we are out of bounds
+    pub fn lazy_insertion_sort(&mut self) -> bool {
+        let (movelist, scorelist) = match self.curr_stage {
+            Stage::Captures => (&mut self.captures, &mut self.capture_scores),
+            Stage::LCaptures => (&mut self.losing_captures, &mut self.lcapture_scores),
+            Stage::Quiets => (&mut self.quiets, &mut self.quiet_scores),
+            _ => return true,
+        };
+        if self.current_index >= movelist.length as usize {
+            return true;
+        }
+        let mut max_score = i16::MIN;
+        let mut best_idx = self.current_index;
+        for i in self.current_index..(movelist.length as usize) {
+            let score = scorelist[i];
+            if score > max_score {
+                max_score = score;
+                best_idx = i;
+            }
+        }
+
+        movelist.swap(self.current_index, best_idx);
+        scorelist.swap(self.current_index, best_idx);
+        false
+    }
+}
+
+pub enum Stage {
+    TTMove,
+    GenCaptures,
+    Captures,
+    GenQuiets,
+    Killers,
+    LCaptures,
+    Quiets,
 }

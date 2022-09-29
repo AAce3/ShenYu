@@ -25,7 +25,7 @@ use super::{
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
 impl Board {
-    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&self) -> List<Move> {
+    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&mut self) -> List<Move> {
         // Move generation is separated.
         // First, pins and legal squares are determined.
         // For a king, legal squares are where the enemy does not attack.
@@ -47,7 +47,7 @@ impl Board {
         let legal_squares = if atk_mask & kingbb == 0 {
             u64::MAX
         } else {
-            self.check_for_legalmoves()
+            self.get_movemask()
         };
 
         {
@@ -99,8 +99,8 @@ impl Board {
                 }
             }
         }
-        let rook_pinmask = self.generate_rook_pins();
-        let bishop_pinmask = self.generate_bishop_pins();
+        let rook_pinmask = self.get_rpinmask();
+        let bishop_pinmask = self.get_bpinmask();
         {
             // Knights cannot move along rays, so we don't need to ever consider pinned knights
             let mut knights =
