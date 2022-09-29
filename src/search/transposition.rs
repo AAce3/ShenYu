@@ -1,12 +1,10 @@
 use crate::board_state::zobrist::ZobristKey;
-// 64 bits: zob key
-// 16 bits: shortmove
-// 16 bits: score
-// 2 bits: node type
+// 64 bits: zob key  8 bytes
+// 16 bits: shortmove 2 bytes
+// 16 bits: score 2 bytes
+// 2 bits: node type 1 byte
 // 6 bits: depth
 
-// It is necessary to store node types so that we can account for beta cutoffs.
-// A beta cutoff is not the true value of the node, but it is a lower bound. The true score could be higher
 
 pub struct TranspositionTable {
     table: Vec<Entry>,
