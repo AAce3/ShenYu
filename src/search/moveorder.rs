@@ -2,12 +2,14 @@ use std::cmp;
 
 use crate::{
     board_state::{
+        bitboard::{Bitboard, BB},
         board::Board,
-        typedefs::{Color, Piece, Square},
+        typedefs::{Color, Piece, Square, BISHOP, KING, KNIGHT, PAWN, QUEEN, ROOK},
     },
     move_generation::{
         action::{Action, Move},
         list::List,
+        movegen::INBETWEENS,
     },
 };
 
@@ -135,6 +137,35 @@ impl Board {
         let attacker = action.piece_moved();
         SEEVALUES[victim as usize] - (SEEVALUES[attacker as usize] / 8)
     }
+
+    pub fn check_move(&self, action: Move) -> bool {
+        action != 0
+            && self.get_at_square(action.move_from()) == action.piece_moved()
+            && self.is_color(action.move_from(), self.tomove)
+            && if action.is_capture() {
+                self.is_color(action.move_to(), !self.tomove)
+            } else {
+                !self.is_occupied(action.move_to())
+            }
+            && match action.piece_moved() {
+                KNIGHT => true,
+                BISHOP | ROOK | QUEEN => {
+                    INBETWEENS[action.move_from() as usize][action.move_to() as usize]
+                        & self.get_occupancy()
+                        == 0
+                }
+                PAWN => {
+                    if !action.is_capture() {
+                        let occ = self.get_occupancy();
+                        let forward = Bitboard::new(action.move_from()).forward(self.tomove);
+                    }
+                    todo!()
+                }
+                KING => todo!(),
+
+                _ => panic!("No bueno"),
+            }
+    }
 }
 
 pub struct StagedGenerator<'a> {
@@ -155,7 +186,7 @@ pub struct StagedGenerator<'a> {
 impl StagedGenerator<'_> {
     pub fn next(&mut self, ord: &OrderData) -> Option<Move> {
         match self.curr_stage {
-            Stage::TTMove => Some(self.ttmove), 
+            Stage::TTMove => Some(self.ttmove),
             // if we have a ttmove, return it. TTmove is checked beforehand to make sure that hash code is valid
             Stage::GenCaptures => {
                 self.captures = self.board.generate_moves::<false, true>();
@@ -257,8 +288,8 @@ impl StagedGenerator<'_> {
                     return None;
                 }
                 let bestmove = self.quiets[self.current_index];
-                if bestmove == self.killers[0] || bestmove == self.killers[1] { 
-                    // killers should be at the end, since we assigned them the worst score. 
+                if bestmove == self.killers[0] || bestmove == self.killers[1] {
+                    // killers should be at the end, since we assigned them the worst score.
                     // If we get there, return immediately, as we have seen all possible moves.
                     return None;
                 }
