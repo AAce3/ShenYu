@@ -10,5 +10,3 @@ Shen Yu is an original work, but it couldn't have been completed with the help o
 - My friend Mirai, who helped me cross-compile my engine when I couldn't figure out how to.
 
 And, of course, thanks to the [Chess Programming wiki](https://www.chessprogramming.org/Main_Page). I don't want to imagine how long it would have taken to write this engine without you.
-
-This will be updated from time to time as I develop my engine.
