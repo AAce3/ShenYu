@@ -4,67 +4,50 @@ use crate::{
     board_state::{
         bitboard::{Bitboard, BB},
         board::Board,
-        typedefs::{Color, Piece, Square, BISHOP, KING, KNIGHT, PAWN, QUEEN, ROOK},
+        typedefs::{Color, Piece, Square, BISHOP, KING, KNIGHT, PAWN, QUEEN, ROOK, WHITE},
     },
     move_generation::{
         action::{Action, Move},
         list::List,
-        movegen::INBETWEENS,
+        makemove::{CASTLE, PASSANT},
+        movegen::{
+            BLOCK_CHECKED_KINGSIDE, BLOCK_CHECKED_QUEENSIDE, BLOCK_OCCUPIED_KINGSIDE,
+            BLOCK_OCCUPIED_QUEENSIDE, INBETWEENS,
+        },
     },
 };
 
 use super::see::SEEVALUES;
 
-pub struct MovePicker {
+pub struct CapturePicker {
     pub movelist: List<Move>,
     pub scorelist: List<i16>,
     pub curr_idx: usize,
 }
 
-const CAPTURE_OFFSET: i16 = 20_000;
 const MAX_HISTORY: i16 = 18_000;
-impl MovePicker {
-    pub fn new(board: &mut Board, ttmove: u16, ord: &OrderData, ply: u16) -> MovePicker {
-        let mut picker = MovePicker {
-            movelist: board.generate_moves::<true, true>(),
-            scorelist: List::new(),
-            curr_idx: 0,
-        };
-        picker.score_moves(board, ttmove, ord, ply);
-        picker
-    }
-
-    pub fn new_capturepicker(board: &mut Board, ord: &OrderData) -> MovePicker {
-        let mut picker = MovePicker {
+impl CapturePicker {
+    pub fn new_capturepicker(board: &mut Board) -> CapturePicker {
+        let mut picker = CapturePicker {
             movelist: board.generate_moves::<false, true>(),
             scorelist: List::new(),
             curr_idx: 0,
         };
-        picker.score_moves(board, 0, ord, 0);
+        picker.score_moves(board);
         picker
     }
 
-    pub fn score_moves(&mut self, board: &Board, ttmove: u16, ord: &OrderData, ply: u16) {
+    pub fn score_moves(&mut self, board: &Board) {
         self.scorelist.length = self.movelist.length;
         for i in 0..self.movelist.length {
             let action = self.movelist[i as usize];
-            let value = if action as u16 == ttmove {
-                25_000
-            } else if action.is_capture() {
-                CAPTURE_OFFSET + board.order_capture(action)
-            } else if action == ord.killers[ply as usize][0]
-                || action == ord.killers[ply as usize][1]
-            {
-                CAPTURE_OFFSET
-            } else {
-                ord.get_history(action.piece_moved(), board.tomove, action.move_to())
-            };
+            let value = board.order_capture(action);
             self.scorelist[i as usize] = value;
         }
     }
 }
 // Looks through the moves to find the one with a highest score, returning none if there are no more moves
-impl Iterator for MovePicker {
+impl Iterator for CapturePicker {
     type Item = Move;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -135,15 +118,17 @@ impl Board {
     pub fn order_capture(&self, action: Move) -> i16 {
         let victim = self.get_at_square(action.move_to());
         let attacker = action.piece_moved();
-        SEEVALUES[victim as usize] - (SEEVALUES[attacker as usize] / 8)
+        SEEVALUES[victim as usize] - (SEEVALUES[attacker as usize] / 16)
     }
 
-    pub fn check_move(&self, action: Move) -> bool {
+    pub fn check_move(&mut self, action: Move) -> bool {
         action != 0
             && self.get_at_square(action.move_from()) == action.piece_moved()
             && self.is_color(action.move_from(), self.tomove)
             && if action.is_capture() {
                 self.is_color(action.move_to(), !self.tomove)
+                    && self.get_pieces(KING, !self.tomove).lsb() != action.move_to()
+            // don't capture enemy king
             } else {
                 !self.is_occupied(action.move_to())
             }
@@ -155,20 +140,65 @@ impl Board {
                         == 0
                 }
                 PAWN => {
-                    if !action.is_capture() {
-                        let occ = self.get_occupancy();
-                        let forward = Bitboard::new(action.move_from()).forward(self.tomove);
+                    if action.is_pawn_doublepush() {
+                        // if it's a pawn doublepush, it only could have passed previous predicates if it actually was a pawn on that square
+                        // and it only could have been generated if there actually was an available doublepush.
+                        // So, we only have to check that it
+                        let forward_one = if self.tomove == WHITE {
+                            action.move_from() + 8
+                        } else {
+                            action.move_from() - 8
+                        };
+                        self.is_empty(forward_one)
+                    } else if action.move_type() == PASSANT {
+                        self.passant_square == Some(action.move_to())
+                    } else {
+                        true
                     }
-                    todo!()
                 }
-                KING => todo!(),
+                KING => {
+                    let occupancy = self.get_occupancy();
+                    let kingbb = self.get_pieces(KING, self.tomove);
+                    let blind_board = occupancy ^ kingbb; // ray-attackers "see through" the king
+                    let atk_mask = self.generate_atk_mask(!self.tomove, blind_board);
+                    let rights = self.get_castlerights(self.tomove);
+                    Bitboard::new(action.move_to()) & atk_mask == 0
+                        && (action.move_type() != CASTLE || {
+                            let is_kingside = action.move_to() > action.move_from();
+                            if is_kingside {
+                                rights & 0b10 != 0
+                                    && BLOCK_OCCUPIED_KINGSIDE[self.tomove as usize] & occupancy
+                                        == 0
+                                    && BLOCK_CHECKED_KINGSIDE[self.tomove as usize] & atk_mask == 0
+                            } else {
+                                rights & 1 != 0
+                                    && BLOCK_OCCUPIED_QUEENSIDE[self.tomove as usize] & occupancy
+                                        == 0
+                                    && BLOCK_CHECKED_QUEENSIDE[self.tomove as usize] & atk_mask == 0
+                            }
+                        })
+                }
 
-                _ => panic!("No bueno"),
+                _ => panic!("Invalid Piece"),
+            }
+            && {
+                if action.piece_moved() != KING {
+                    self.get_movemask() & Bitboard::new(action.move_to()) != 0
+                        && (Bitboard::new(action.move_from()) & self.get_rpinmask() == 0
+                            || Bitboard::new(action.move_to()) & self.get_rpinmask() != 0)
+                        && (Bitboard::new(action.move_from()) & self.get_bpinmask() == 0
+                            || Bitboard::new(action.move_to()) & self.get_bpinmask() != 0)
+                } else if action.move_type() == PASSANT {
+                    let newb = self.do_move(action);
+                    newb.incheck(self.tomove)
+                } else {
+                    true
+                }
             }
     }
 }
 
-pub struct StagedGenerator<'a> {
+pub struct StagedGenerator {
     pub ttmove: Move,
     pub curr_stage: Stage,
     captures: List<Move>,
@@ -179,26 +209,53 @@ pub struct StagedGenerator<'a> {
     quiets: List<Move>,
     quiet_scores: List<i16>,
     current_index: usize,
-    pub board: &'a mut Board,
+    pub board: Board,
     ply: u16,
 }
-
-impl StagedGenerator<'_> {
+impl StagedGenerator {
+    pub fn new(ttmove: Move, board: Board, ply: u16) -> Self {
+        Self {
+            ttmove,
+            curr_stage: Stage::TTMove,
+            captures: List::new(),
+            capture_scores: List::new(),
+            killers: [0; 2],
+            losing_captures: List::new(),
+            lcapture_scores: List::new(),
+            quiets: List::new(),
+            quiet_scores: List::new(),
+            current_index: 0,
+            board,
+            ply,
+        }
+    }
+}
+impl StagedGenerator {
     pub fn next(&mut self, ord: &OrderData) -> Option<Move> {
         match self.curr_stage {
-            Stage::TTMove => Some(self.ttmove),
             // if we have a ttmove, return it. TTmove is checked beforehand to make sure that hash code is valid
+            Stage::TTMove => {
+                self.curr_stage = Stage::GenCaptures;
+                if self.ttmove == 0 {
+                    return self.next(ord);
+                }
+                Some(self.ttmove)
+            }
+
             Stage::GenCaptures => {
                 self.captures = self.board.generate_moves::<false, true>();
-                self.capture_scores.length = self.captures.length;
                 for i in 0..self.captures.length {
                     // score captures by mvv lva ordering
-                    // high value targets take priority, low value attackers slightly alter that
+                    // high value targets take priority
                     let action = self.captures[i as usize];
-                    let score = self.board.order_capture(action);
-                    self.capture_scores[i as usize] = score;
+                    let score = if action == self.ttmove {
+                        i16::MIN // avoid searching the ttmove
+                    } else {
+                        self.board.order_capture(action)
+                    };
+                    self.capture_scores.push(score);
                 }
-                // go to capture stage
+                // go to next stage
                 self.curr_stage = Stage::Captures;
                 self.current_index = 0;
                 self.next(ord)
@@ -211,17 +268,22 @@ impl StagedGenerator<'_> {
                     return self.next(ord);
                 }
                 let currbest = self.captures[self.current_index];
-                let seevalue = self.board.see(currbest);
+
+                let victim = self.board.get_at_square(currbest.move_to());
+                let attacker = currbest.piece_moved();
+
                 // if the capture is a losing capture by SEE, put it on the losing captures list and skip it.
-                if seevalue < 0 {
-                    self.losing_captures.push(currbest);
-                    self.lcapture_scores.push(seevalue);
-                    self.current_index += 1;
-                    self.next(ord)
-                } else {
-                    self.current_index += 1;
-                    Some(currbest)
+                if attacker > victim && attacker != KING {
+                    let seevalue = self.board.see(currbest);
+                    if seevalue < 0 {
+                        self.losing_captures.push(currbest);
+                        self.lcapture_scores.push(seevalue);
+                        self.current_index += 1;
+                        return self.next(ord);
+                    }
                 }
+                self.current_index += 1;
+                Some(currbest)
             }
             Stage::GenQuiets => {
                 self.quiets = self.board.generate_moves::<true, false>();
@@ -232,20 +294,24 @@ impl StagedGenerator<'_> {
                         action if action == ord.killers[self.ply as usize][0] => {
                             self.killers[0] = action;
                             // give them a really bad score so that they don't get sorted with the quiets.
-                            self.quiet_scores[i as usize] = i16::MIN;
+                            self.quiet_scores.push(i16::MIN);
                         }
                         action if action == ord.killers[self.ply as usize][1] => {
                             self.killers[1] = action;
-                            self.quiet_scores[i as usize] = i16::MIN;
+                            self.quiet_scores.push(i16::MIN);
                         }
                         _ => {
                             // otherwise, score them via history heuristic
-                            let score = ord.get_history(
-                                action.piece_moved(),
-                                self.board.tomove,
-                                action.move_to(),
-                            );
-                            self.quiet_scores[i as usize] = score;
+                            let score = if action == self.ttmove {
+                                i16::MIN
+                            } else {
+                                ord.get_history(
+                                    action.piece_moved(),
+                                    self.board.tomove,
+                                    action.move_to(),
+                                )
+                            };
+                            self.quiet_scores.push(score);
                         }
                     }
                 }
@@ -258,12 +324,11 @@ impl StagedGenerator<'_> {
                     self.curr_stage = Stage::LCaptures;
                     self.current_index = 0;
                 }
-                for (index, action) in self.killers.iter().skip(self.current_index).enumerate() {
-                    // loop through both killers. Check if they were stored.
-                    if *action != 0 {
-                        // if they were stored, immediately stop and return. Increment the index.
-                        self.current_index = index + 1;
-                        return Some(*action);
+                for i in self.current_index..2 {
+                    let killer = self.killers[i];
+                    if killer != 0 {
+                        self.current_index = i + 1;
+                        return Some(killer);
                     }
                 }
                 // If none match, go to the next stage
@@ -288,11 +353,6 @@ impl StagedGenerator<'_> {
                     return None;
                 }
                 let bestmove = self.quiets[self.current_index];
-                if bestmove == self.killers[0] || bestmove == self.killers[1] {
-                    // killers should be at the end, since we assigned them the worst score.
-                    // If we get there, return immediately, as we have seen all possible moves.
-                    return None;
-                }
                 self.current_index += 1;
                 Some(bestmove)
             }
@@ -319,7 +379,11 @@ impl StagedGenerator<'_> {
                 best_idx = i;
             }
         }
-
+        if max_score == i16::MIN {
+            // already generated moves are assigned i16::MIN
+            // it is impossible for any other score to reach that low, so when we get here we know that there are no more moves
+            return true;
+        }
         movelist.swap(self.current_index, best_idx);
         scorelist.swap(self.current_index, best_idx);
         false
