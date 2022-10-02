@@ -1,10 +1,9 @@
-use crate::board_state::zobrist::ZobristKey;
+use crate::{board_state::zobrist::ZobristKey, move_generation::action::Move};
 // 64 bits: zob key  8 bytes
-// 16 bits: shortmove 2 bytes
+// 32 bits: best move 4 bytes
 // 16 bits: score 2 bytes
 // 2 bits: node type 1 byte
 // 6 bits: depth
-
 
 pub struct TranspositionTable {
     table: Vec<Entry>,
@@ -15,10 +14,10 @@ impl TranspositionTable {
     pub fn new(size: usize) -> Self {
         // size is in MB
         let entries = size * CONVERSION;
-        if entries == 0{
-            return Self{
-                table: vec![Entry::new(); 1]
-            }
+        if entries == 0 {
+            return Self {
+                table: vec![Entry::new(); 1],
+            };
         }
         Self {
             table: vec![Entry::new(); entries],
@@ -36,7 +35,6 @@ impl TranspositionTable {
 }
 
 type NodeType = u8;
-pub const NULL: NodeType = 0;
 pub const BETA: NodeType = 0b10;
 pub const EXACT: NodeType = 0b11;
 pub const ALPHA: NodeType = 0b01;
@@ -44,7 +42,7 @@ pub const ALPHA: NodeType = 0b01;
 #[repr(align(16))]
 pub struct Entry {
     pub key: u64,
-    pub bestmove: u16,
+    pub bestmove: Move,
     pub score: i16,
     pub otherdata: u8,
 }
@@ -61,10 +59,10 @@ impl Entry {
             key: 0,
             bestmove: 0,
             score: 0,
-            otherdata: 0,
+            otherdata: EXACT,
         }
     }
-    pub fn store(&mut self, key: u64, bestmove: u16, eval: i16, depth: u8, nodetype: NodeType) {
+    pub fn store(&mut self, key: u64, bestmove: Move, eval: i16, depth: u8, nodetype: NodeType) {
         let data = (depth << 2) | nodetype;
         self.key = key;
         self.bestmove = bestmove;
