@@ -1,6 +1,4 @@
-
-
-use super::action::{Action, MoveType, Move};
+use super::action::{Action, Move, MoveType};
 use crate::board_state::{
     board::Board,
     typedefs::{Square, KING, PAWN, ROOK},
@@ -63,7 +61,7 @@ struct CastleData {
 
 impl Board {
     pub fn do_move(&self, action: Move) -> Board {
-        let mut board = self.clone();
+        let mut board = *self;
         board.halfmove_clock += 1;
         board.reset_ep();
 
@@ -111,10 +109,9 @@ impl Board {
         }
 
         board.swap_sides();
-        
+
         board.set_castling_rights(board.update_castlerights());
         board.desync();
         board
     }
 }
-
