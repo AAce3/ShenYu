@@ -77,6 +77,7 @@ impl fmt::Display for Board {
         write!(&mut base_string, "\n|   Halfmove Clock: {}", self.halfmove_clock).unwrap();
         write!(&mut base_string, "\n|   Zobrist Key: {}", self.zobrist_key).unwrap();
         write!(&mut base_string, "\n|   Static Eval: {}", self.evaluate()).unwrap();
+        write!(&mut base_string, "\n|   Fen: {}", self.generate_fen()).unwrap();
         base_string += "\n+------------------------------------------+";
         write!(f, "{}", base_string)
     }
