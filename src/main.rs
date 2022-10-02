@@ -1,7 +1,6 @@
-use shenyu::{uci::gameloop};
-
-
+use shenyu::uci::gameloop;
 
 fn main() {
-    gameloop()
+    gameloop();
+
 }
