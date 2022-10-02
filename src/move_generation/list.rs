@@ -3,6 +3,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 // Custom list implementation that can be stored on the stack
+#[derive(PartialEq, Eq)]
 pub struct List<T> {
     pub items: [T; 255],
     pub length: u8,
