@@ -16,6 +16,7 @@ and many others.
 ### Move Generation:
   - Fancy Magic Bitboards
   - fully legal move generation
+  - Staged Move generation (TTMove, Captures, Killers, Losing captures, Quiets)
 ### Evaluation:
   - Tapered PeSTO PSQTs
 ### Search:
@@ -24,6 +25,8 @@ and many others.
   - PVS
   - Transposition Table
   - MVV/LVA move ordering
+  - SEE move ordering for losing captures
   - Killer heuristic
   - History heuristic
   - Quiescience Search
+  - SEE pruning in quiescience search
