@@ -1,4 +1,4 @@
-#This will be a place for all the changes to be documented. Releases will be posted here as well.
+# This will be a place for all the changes to be documented. Releases will be posted here as well.
 
 # Shen Yu v1.0.0 (? elo)
 ## Features:
@@ -19,3 +19,4 @@
   - History heuristic
   - Quiescience Search
   - SEE pruning in quiescience search
+No repetition detection yet
