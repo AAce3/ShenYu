@@ -17,4 +17,4 @@
   - History heuristic
   - Quiescience Search
   - SEE pruning in quiescience search
-No repetition detection yet
+  - No repetition detection
