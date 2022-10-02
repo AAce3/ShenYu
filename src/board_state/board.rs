@@ -1,3 +1,4 @@
+
 use std::ops::{Index, IndexMut};
 
 use crate::{board_state::typedefs::KING, search::evaluate::IncrementalEval};
@@ -11,7 +12,7 @@ use super::{
 // A 1 represents the presence of a piece at that square, a 0 represents an absence.
 // Board representation is one bitboard for each piece type (PNBRQK) and two color bitboards.
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub struct Board {
     pub pieces: [Bitboard; 6], // pieces are indexed in this order: Pawn, Knight, Bishop, Rook, Queen, King
     pub colors: [Bitboard; 2],
@@ -96,7 +97,7 @@ impl Board {
 
     #[inline]
     pub fn is_color(&self, square: Square, color: Color) -> bool {
-        let relevant_color = self.colors[color as usize];
+        let relevant_color = self[color];
         ((relevant_color >> square) & 1) != 0
     }
 
@@ -115,8 +116,6 @@ impl Board {
         let bbfrom = Bitboard::new(from);
         let bbto = Bitboard::new(to);
         let square_bb = bbfrom | bbto;
-        debug_assert!(self[piecetype] & bbfrom != 0);
-        debug_assert!(self[color] & bbfrom != 0);
         self[piecetype] ^= square_bb;
         self[color] ^= square_bb;
         let fromzob = ZOBRIST.get_piece_zob(from, color, piecetype);
@@ -129,8 +128,6 @@ impl Board {
     #[inline]
     pub fn remove_piece(&mut self, square: Square, piecetype: Piece, color: Color) {
         let square_bb = Bitboard::new(square);
-        debug_assert!(self[piecetype] & square_bb != 0);
-        debug_assert!(self[color] & square_bb != 0);
         self[piecetype] ^= square_bb;
         self[color] ^= square_bb;
         let relevant_zobrist = ZOBRIST.get_piece_zob(square, color, piecetype);
@@ -276,7 +273,7 @@ impl Index<Color> for Board {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub struct LazyMask {
     pub mask: u64,
     pub synced: bool,
