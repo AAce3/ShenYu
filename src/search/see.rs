@@ -15,7 +15,7 @@ use crate::{
 pub const SEEVALUES: [i16; 7] = [0, 100, 300, 300, 500, 900, 10_000];
 
 impl Board {
-    // Complex SEE for capture pruning.
+    // SEE for capture pruning and ordering.
     // SEE evaluates the result of many captures on the same square, 
     // by swapping sides and picking the least valuable attacker for each side.
     // At any point if it is advantageous for a side to terminate the exchange it will do so
