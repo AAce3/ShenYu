@@ -1,8 +1,7 @@
-
 use std::{
     cmp,
-    io::{self, stdin},
-    sync::mpsc::{self, Receiver, Sender},
+    io::stdin,
+    sync::mpsc::{self, Sender},
     thread,
     time::Duration,
 };
@@ -12,24 +11,29 @@ use crate::{
         board::Board,
         typedefs::{Square, BISHOP, BLACK, KNIGHT, QUEEN, ROOK, WHITE},
     },
-    move_generation::{action::Action, makemove::PROMOTION},
-    search::{alphabeta::{SearchControl, SearchData}, timer::Timer, transposition::TranspositionTable},
+    move_generation::{
+        action::{Action, Move},
+        makemove::PROMOTION,
+    },
+    search::{
+        alphabeta::{SearchControl, SearchData},
+        timer::Timer,
+        transposition::TranspositionTable,
+    },
 };
 use crate::{go_next, send};
 
-pub fn gameloop(){
+pub fn gameloop() {
     let newb =
         Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
     let newdata = SearchData::new(Timer::new());
 
-    let mut control = SearchControl{
+    let mut control = SearchControl {
         searchdata: newdata,
         curr_ply: 0,
         curr_board: newb,
     };
-    let mut comm = Communicator{
-        comm: None,
-    };
+    let mut comm = Communicator { comm: None };
     let (tx, rx) = mpsc::channel::<Control>();
     control.searchdata.message_recv = Some(rx);
     println!("Shen Yu by Aaron Li");
@@ -44,7 +48,7 @@ pub struct Communicator {
     pub comm: Option<Sender<Control>>,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq)]
 pub enum Control {
     Go,
     Stop,
@@ -116,7 +120,7 @@ impl SearchControl {
                     },
                     Control::Show => {
                         println!("{}", self.curr_board);
-                    },
+                    }
                 }
             }
             thread::sleep(Duration::from_millis(1));
@@ -211,7 +215,9 @@ impl Communicator {
                         continue;
                     }
                     match newb.do_input_move(i.to_owned()) {
-                        Ok(board) => newb = board,
+                        Ok(action) => {
+                            newb = newb.do_move(action);
+                        }
                         Err(_) => panic!("What"),
                     }
                 }
@@ -351,18 +357,9 @@ macro_rules! send {
         ($from).comm.as_ref().unwrap().send($msg).unwrap();
     };
 }
-pub fn spawn_stdin_channel() -> Receiver<String> {
-    let (tx, rx) = mpsc::channel::<String>();
-    thread::spawn(move || loop {
-        let mut buffer = String::new();
-        io::stdin().read_line(&mut buffer).unwrap();
-        tx.send(buffer).unwrap();
-    });
-    rx
-}
 
 impl Board {
-    pub fn do_input_move(&mut self, movestring: String) -> Result<Board, u8> {
+    pub fn do_input_move(&mut self, movestring: String) -> Result<Move, u8> {
         let moves = self.generate_moves::<true, true>();
         let from = &movestring[..2];
         let to = &movestring[2..4];
@@ -393,7 +390,7 @@ impl Board {
                     && action.move_from() == fromsqr
                     && action.move_to() == tosqr
                 {
-                    return Ok(self.do_move(action));
+                    return Ok(action);
                 }
             }
             Err(0)
@@ -401,7 +398,7 @@ impl Board {
             for i in 0..moves.length {
                 let action = moves[i as usize];
                 if action.move_from() == fromsqr && action.move_to() == tosqr {
-                    return Ok(self.do_move(action));
+                    return Ok(action);
                 }
             }
             Err(0)
