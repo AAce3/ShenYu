@@ -22,6 +22,10 @@ use super::{
     makemove::NORMAL,
     masks::{KING_ATTACKS, KNIGHT_ATTACKS, PAWN_CAPTURES},
 };
+pub const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
+pub const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
+pub const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
+pub const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
 impl Board {
@@ -57,16 +61,14 @@ impl Board {
             let mut quiet_moves = moves & quiet_sqrs;
             while capture_moves != 0 {
                 let to = capture_moves.pop_lsb();
-                let mut action = Move::new_move(kingsqr, to, NORMAL);
-                action.set_moving_piece(KING);
+                let mut action = Move::new_move(kingsqr, to, NORMAL, KING);
                 action.set_capture();
                 list.push(action);
             }
 
             while quiet_moves != 0 {
                 let to = quiet_moves.pop_lsb();
-                let mut action = Move::new_move(kingsqr, to, NORMAL);
-                action.set_moving_piece(KING);
+                let action = Move::new_move(kingsqr, to, NORMAL, KING);
                 list.push(action);
             }
 
@@ -77,10 +79,6 @@ impl Board {
                 let is_queenside_legal = rights & 1 != 0;
                 let blocking_castle = occupancy;
                 let checking_castle = atk_mask;
-                const BLOCK_OCCUPIED_KINGSIDE: [Bitboard; 2] = [0x60, 0x6000000000000000];
-                const BLOCK_OCCUPIED_QUEENSIDE: [Bitboard; 2] = [0xe, 0xe00000000000000];
-                const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
-                const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
 
                 let is_kingside_blocked =
                     blocking_castle & BLOCK_OCCUPIED_KINGSIDE[self.tomove as usize] != 0
@@ -113,16 +111,14 @@ impl Board {
 
                 while capture_moves != 0 {
                     let to_square = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(KNIGHT);
+                    let mut action = Move::new_move(square, to_square, NORMAL, KNIGHT);
                     action.set_capture();
                     list.push(action);
                 }
 
                 while quiet_moves != 0 {
                     let to_square = quiet_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(KNIGHT);
+                    let action = Move::new_move(square, to_square, NORMAL, KNIGHT);
                     list.push(action);
                 }
             }
@@ -143,16 +139,14 @@ impl Board {
                 let piece_moved = BISHOP + (is_queen * 2);
                 while capture_moves != 0 {
                     let to_square = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let mut action = Move::new_move(square, to_square, NORMAL, piece_moved);
                     action.set_capture();
                     list.push(action);
                 }
 
                 while quiet_moves != 0 {
                     let to_square = quiet_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let action = Move::new_move(square, to_square, NORMAL, piece_moved);
                     list.push(action);
                 }
             }
@@ -166,16 +160,16 @@ impl Board {
                 let piece_moved = BISHOP + (is_queen * 2);
                 while capture_moves != 0 {
                     let to_square = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let mut action = Move::new_move(square, to_square, NORMAL, piece_moved);
+                    
                     action.set_capture();
                     list.push(action);
                 }
 
                 while quiet_moves != 0 {
                     let to_square = quiet_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let action = Move::new_move(square, to_square, NORMAL, piece_moved);
+
                     list.push(action);
                 }
             }
@@ -196,16 +190,15 @@ impl Board {
                 let piece_moved = ROOK + is_queen;
                 while capture_moves != 0 {
                     let to_square = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let mut action = Move::new_move(square, to_square, NORMAL, piece_moved);
+
                     action.set_capture();
                     list.push(action);
                 }
 
                 while quiet_moves != 0 {
                     let to_square = quiet_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let action = Move::new_move(square, to_square, NORMAL, piece_moved);
                     list.push(action);
                 }
             }
@@ -220,16 +213,14 @@ impl Board {
 
                 while capture_moves != 0 {
                     let to_square = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let mut action = Move::new_move(square, to_square, NORMAL, piece_moved);
                     action.set_capture();
                     list.push(action);
                 }
 
                 while quiet_moves != 0 {
                     let to_square = quiet_moves.pop_lsb();
-                    let mut action = Move::new_move(square, to_square, NORMAL);
-                    action.set_moving_piece(piece_moved);
+                    let action = Move::new_move(square, to_square, NORMAL, piece_moved);
                     list.push(action);
                 }
             }
@@ -255,8 +246,7 @@ impl Board {
                 if forward != 0 {
                     if forward & legal_squares != 0 {
                         let to = forward.lsb();
-                        let mut onepush = Move::new_move(from, to, NORMAL);
-                        onepush.set_moving_piece(PAWN);
+                        let onepush = Move::new_move(from, to, NORMAL, PAWN);
                         list.push(onepush);
                     }
                     let doublepush = forward.forward(self.tomove)
@@ -266,9 +256,8 @@ impl Board {
 
                     if doublepush != 0 {
                         let double_to = doublepush.lsb();
-                        let mut doublepush = Move::new_move(from, double_to, NORMAL);
+                        let mut doublepush = Move::new_move(from, double_to, NORMAL, PAWN);
                         doublepush.set_doublemove();
-                        doublepush.set_moving_piece(PAWN);
                         list.push(doublepush);
                     }
                 }
@@ -279,8 +268,7 @@ impl Board {
 
                 if unlikely(pr_push != 0) {
                     let to = pr_push.lsb();
-                    let mut action = Move::new_move(from, to, PROMOTION);
-                    action.set_moving_piece(PAWN);
+                    let action = Move::new_move(from, to, PROMOTION, PAWN);
                     if CAPTURES {
                         let mut pr_move = action;
                         pr_move.set_pr_piece(QUEEN);
@@ -302,8 +290,8 @@ impl Board {
 
                 while capture_moves != 0 {
                     let to = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(from, to, NORMAL);
-                    action.set_moving_piece(PAWN);
+                    let mut action = Move::new_move(from, to, NORMAL, PAWN);
+                    
                     action.set_capture();
                     list.push(action);
                 }
@@ -315,8 +303,7 @@ impl Board {
 
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
-                    let mut action = Move::new_move(from, to, PROMOTION);
-                    action.set_moving_piece(PAWN);
+                    let mut action = Move::new_move(from, to, PROMOTION, PAWN);
                     action.set_capture();
                     if CAPTURES {
                         let mut pr_move = action;
@@ -346,8 +333,7 @@ impl Board {
                 if forward != 0 {
                     if forward & legal_squares != 0 {
                         let to = forward.lsb();
-                        let mut onepush = Move::new_move(from, to, NORMAL);
-                        onepush.set_moving_piece(PAWN);
+                        let onepush = Move::new_move(from, to, NORMAL, PAWN);
                         list.push(onepush);
                     }
                     let doublepush = forward.forward(self.tomove)
@@ -357,9 +343,9 @@ impl Board {
 
                     if doublepush != 0 {
                         let double_to = doublepush.lsb();
-                        let mut doublepush = Move::new_move(from, double_to, NORMAL);
+                        let mut doublepush = Move::new_move(from, double_to, NORMAL, PAWN);
                         doublepush.set_doublemove();
-                        doublepush.set_moving_piece(PAWN);
+ 
                         list.push(doublepush);
                     }
                 }
@@ -374,8 +360,7 @@ impl Board {
 
                 while capture_moves != 0 {
                     let to = capture_moves.pop_lsb();
-                    let mut action = Move::new_move(from, to, NORMAL);
-                    action.set_moving_piece(PAWN);
+                    let mut action = Move::new_move(from, to, NORMAL, PAWN);
                     action.set_capture();
                     list.push(action);
                 }
@@ -388,8 +373,7 @@ impl Board {
 
                 while pr_captures != 0 {
                     let to = pr_captures.pop_lsb();
-                    let mut action = Move::new_move(from, to, PROMOTION);
-                    action.set_moving_piece(PAWN);
+                    let mut action = Move::new_move(from, to, PROMOTION, PAWN);
                     action.set_capture();
                     if CAPTURES {
                         let mut pr_move = action;
@@ -424,8 +408,7 @@ impl Board {
                     while possible_pawns != 0 {
                         let from = possible_pawns.pop_lsb();
                         let to = square;
-                        let mut newpassant = Move::new_move(from, to, PASSANT);
-                        newpassant.set_moving_piece(PAWN);
+                        let newpassant = Move::new_move(from, to, PASSANT, PAWN);
                         let newb = self.do_move(newpassant);
                         if !newb.incheck(self.tomove) {
                             list.push(newpassant);
