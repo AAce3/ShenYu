@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    board_state::{board::Board, zobrist::ZobristKey},
+    board_state::{board::Board},
     move_generation::{
         action::{Action, Move},
         list::List,
@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    moveorder::{MovePicker, OrderData},
+    moveorder::{CapturePicker, OrderData, StagedGenerator},
     timer::Timer,
     transposition::{TranspositionTable, ALPHA, BETA, EXACT},
 };
@@ -173,7 +173,7 @@ impl Board {
         let ispv = beta - alpha != 1;
         let tt_entry = data.tt.probe(self.zobrist_key);
         let tt_data = unsafe { *tt_entry };
-        if tt_data.key_equals(self.zobrist_key) {
+        if tt_data.key_equals(self.zobrist_key) && self.check_move(tt_data.bestmove) {
             // set our 'best guess' to be the tt move
             bestmove = tt_data.bestmove;
             let score = tt_data.score;
@@ -198,7 +198,7 @@ impl Board {
         } else if depth >= 4 {
             // If there is no TT move, it's faster to do a shorter search and use that as the best move instead
             let mut newpvline = List::new();
-            self.negamax::<false>(
+            self.negamax::<true>(
                 depth - 2,
                 alpha,
                 beta,
@@ -207,10 +207,12 @@ impl Board {
                 starting_ply,
                 &mut newpvline,
             );
-            bestmove = newpvline[0] as u16;
+            if newpvline.length != 0 {
+                bestmove = newpvline[0];
+            }
         }
 
-        let moves_generated = MovePicker::new(self, bestmove, &data.ord, ply);
+        let mut moves_generated = StagedGenerator::new(bestmove, *self, ply);
         let mut best_pvline = List::new();
         let mut best_score = -CHECKMATE;
 
@@ -218,7 +220,7 @@ impl Board {
         let mut num_moves = 0;
         let mut raised_alpha = false;
 
-        for action in moves_generated {
+        while let Some(action) = moves_generated.next(&data.ord) {
             // Initialize a child PV line
             let mut newpvline = List::new();
             newpvline.push(action);
@@ -273,7 +275,7 @@ impl Board {
             if score > best_score {
                 best_score = score;
                 best_pvline = newpvline;
-                bestmove = action as u16;
+                bestmove = action;
                 if score > alpha {
                     raised_alpha = true;
                     alpha = score;
@@ -283,7 +285,7 @@ impl Board {
                     unsafe {
                         tt_entry.as_mut().unwrap().store(
                             self.zobrist_key,
-                            action as u16,
+                            action,
                             score,
                             depth,
                             BETA,
@@ -359,9 +361,13 @@ impl Board {
             alpha = bestscore;
         }
 
-        let captures = MovePicker::new_capturepicker(self, &data.ord);
+        let captures = CapturePicker::new_capturepicker(self);
 
         for action in captures {
+            let seevalue = self.see(action);
+            if seevalue + 200 < alpha || seevalue < 100 {
+                continue;
+            }
             let mut newb = self.do_move(action);
 
             let score = -newb.quiesce(-beta, -alpha, ply + 1, data);
@@ -386,13 +392,9 @@ pub struct SearchData {
     pub ord: OrderData,
     pub timer: Timer,
     pub message_recv: Option<Receiver<Control>>,
-    
 }
 
-pub struct GameHistory{
-    pub previous_zobrists: List<ZobristKey>,
-    pub last_retractable: usize,
-}
+
 impl SearchData {
     pub fn new(t: Timer) -> Self {
         let default_ord = OrderData {
@@ -407,7 +409,6 @@ impl SearchData {
             ord: default_ord,
             timer: t,
             message_recv: None,
-
         }
     }
     fn clear(&mut self) {
