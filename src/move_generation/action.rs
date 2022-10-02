@@ -34,8 +34,8 @@ pub trait Action {
     fn piece_moved(&self) -> Piece;
     fn is_capture(&self) -> bool;
     fn is_pawn_doublepush(&self) -> bool;
-    fn new_move(from: Square, to: Square, movetype: MoveType) -> Self;
-    fn set_moving_piece(&mut self, piece: Piece);
+    fn new_move(from: Square, to: Square, movetype: MoveType, piece: Piece) -> Self;
+
     fn set_pr_piece(&mut self, piece: Piece);
     fn set_capture(&mut self);
     fn set_doublemove(&mut self);
@@ -94,14 +94,11 @@ impl Action for Move {
         ((self >> 20) & 1) != 0
     }
     #[inline]
-    fn new_move(from: Square, to: Square, movetype: MoveType) -> Self {
-        (from as u32) | ((to as u32) << 6) | ((movetype as u32) << 12)
+    fn new_move(from: Square, to: Square, movetype: MoveType, moving_piece: Piece) -> Self {
+        assert_ne!(moving_piece, 0);
+        (from as u32) | ((to as u32) << 6) | ((movetype as u32) << 12) | ((moving_piece as u32) << 16)
     }
     
-    #[inline]
-    fn set_moving_piece(&mut self, piece: Piece) {
-        *self |= (piece as u32) << 16
-    }
     #[inline]
     fn set_pr_piece(&mut self, piece: Piece) {
         let pval = (piece - 2) as u32;
