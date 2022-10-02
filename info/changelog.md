@@ -1,5 +1,3 @@
-## This will be a place for all the changes to be documented. Releases will be posted here as well.
-
 # Shen Yu v1.0.0 (? elo)
 ## Features:
 ### Move Generation:
