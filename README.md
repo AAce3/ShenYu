@@ -9,10 +9,9 @@ Shen Yu does not come with a user interface. It requires a user interface that i
 - [CuteChess](https://cutechess.com/)
 - [Banksia](https://banksiagui.com/)
 
-and many others.
+and many others. 
 
 ## Features
-
 ### Move Generation:
   - Fancy Magic Bitboards
   - fully legal move generation
