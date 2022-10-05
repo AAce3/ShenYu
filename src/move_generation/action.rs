@@ -1,6 +1,4 @@
-use crate::board_state::{
-    typedefs::{Piece, Square, BISHOP, KNIGHT, QUEEN, ROOK, SQUARE_NAMES},
-};
+use crate::board_state::typedefs::{Piece, Square, BISHOP, KNIGHT, QUEEN, ROOK, SQUARE_NAMES};
 
 use super::makemove::PROMOTION;
 
@@ -22,7 +20,6 @@ use super::makemove::PROMOTION;
 
 pub type Move = u32;
 
-
 pub type MoveType = u8;
 
 const PR_PIECES: [Piece; 4] = [KNIGHT, BISHOP, ROOK, QUEEN];
@@ -39,16 +36,16 @@ pub trait Action {
     fn set_pr_piece(&mut self, piece: Piece);
     fn set_capture(&mut self);
     fn set_doublemove(&mut self);
-    fn to_algebraic(&self) -> String{
+    fn to_algebraic(&self) -> String {
         let sqrfrom = SQUARE_NAMES[self.move_from() as usize];
         let sqrto = SQUARE_NAMES[self.move_to() as usize];
-        let pr_val = if self.move_type() == PROMOTION{
-            match self.promote_to(){
+        let pr_val = if self.move_type() == PROMOTION {
+            match self.promote_to() {
                 KNIGHT => "n",
                 BISHOP => "b",
                 ROOK => "r",
                 QUEEN => "q",
-                _ => panic!("illegal piece")
+                _ => panic!("illegal piece"),
             }
         } else {
             ""
@@ -58,9 +55,6 @@ pub trait Action {
         base_str += pr_val;
         base_str
     }
-
-
-
 }
 
 impl Action for Move {
@@ -96,9 +90,12 @@ impl Action for Move {
     #[inline]
     fn new_move(from: Square, to: Square, movetype: MoveType, moving_piece: Piece) -> Self {
         assert_ne!(moving_piece, 0);
-        (from as u32) | ((to as u32) << 6) | ((movetype as u32) << 12) | ((moving_piece as u32) << 16)
+        (from as u32)
+            | ((to as u32) << 6)
+            | ((movetype as u32) << 12)
+            | ((moving_piece as u32) << 16)
     }
-    
+
     #[inline]
     fn set_pr_piece(&mut self, piece: Piece) {
         let pval = (piece - 2) as u32;
@@ -112,11 +109,4 @@ impl Action for Move {
     fn set_doublemove(&mut self) {
         *self |= 1 << 20;
     }
-
-
-
-
-
 }
-
-
