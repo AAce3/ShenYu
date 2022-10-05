@@ -23,13 +23,10 @@ impl<T> List<T> {
             length: 0,
         }
     }
-    pub fn pop(&mut self) -> Option<&T> {
-        if self.length == 0 {
-            None
-        } else {
-            self.length -= 1;
-            Some(&self.items[self.length as usize])
-        }
+    #[inline]
+    pub fn pop(&mut self) {
+        assert!(self.length != 0);
+        self.length -= 1;
     }
 
     #[inline]
@@ -49,7 +46,6 @@ impl<T> List<T> {
         self.length = 0;
         self.items = unsafe { mem::MaybeUninit::uninit().assume_init() };
     }
-
 }
 
 impl<T> Index<usize> for List<T> {
