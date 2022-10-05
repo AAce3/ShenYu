@@ -18,7 +18,7 @@ use crate::{
     search::{
         alphabeta::{SearchControl, SearchData},
         timer::Timer,
-        transposition::TranspositionTable,
+        transposition::TranspositionTable, gamehistory::GameHistory,
     },
 };
 use crate::{go_next, send};
@@ -62,6 +62,7 @@ pub enum Control {
     NodeSet(u64),
     DepthSet(u8),
     SetBoard(Board),
+    SetHistory(Box<GameHistory>),
     SetOption(OptionType),
 }
 
@@ -121,6 +122,7 @@ impl SearchControl {
                     Control::Show => {
                         println!("{}", self.curr_board);
                     }
+                    Control::SetHistory(history) => self.searchdata.gamehistory = *history,
                 }
             }
             thread::sleep(Duration::from_millis(1));
@@ -203,10 +205,13 @@ impl Communicator {
                     if let Ok(newb) = Board::parse_fen(fen) {
                         let board = Control::SetBoard(newb);
                         send!(self, board);
+                        let clearhistory = Control::SetHistory(Box::new(GameHistory::new()));
+                        send!(self, clearhistory);
                     }
                 }
             }
             "startpos" => {
+                let mut ghistory = GameHistory::new();
                 let mut newb =
                     Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
                         .unwrap();
@@ -217,12 +222,15 @@ impl Communicator {
                     match newb.do_input_move(i.to_owned()) {
                         Ok(action) => {
                             newb = newb.do_move(action);
+                            ghistory.store(newb.zobrist_key);
                         }
                         Err(_) => panic!("What"),
                     }
                 }
                 let board = Control::SetBoard(newb);
                 send!(self, board);
+                let history = Control::SetHistory(Box::new(ghistory));
+                send!(self, history)
             }
             _ => (),
         }
@@ -347,14 +355,14 @@ impl Communicator {
 #[macro_export]
 macro_rules! go_next {
     () => {{
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(1));
         continue;
     }};
 }
 #[macro_export]
 macro_rules! send {
     ($from:ident, $msg:ident) => {
-        ($from).comm.as_ref().unwrap().send($msg).unwrap();
+        ($from).comm.as_ref().unwrap().send($msg).unwrap()
     };
 }
 

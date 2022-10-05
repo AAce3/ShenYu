@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    board_state::{board::Board},
+    board_state::board::Board,
     move_generation::{
         action::{Action, Move},
         list::List,
@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::{
+    gamehistory::GameHistory,
     moveorder::{CapturePicker, OrderData, StagedGenerator},
     timer::Timer,
     transposition::{TranspositionTable, ALPHA, BETA, EXACT},
@@ -129,7 +130,7 @@ impl Board {
         starting_ply: u8,
         pvline: &mut List<Move>,
     ) -> i16 {
-        if self.is_draw() {
+        if depth > 1 && (self.is_draw() || data.gamehistory.find(self.halfmove_clock)){
             return 0;
         }
 
@@ -227,6 +228,7 @@ impl Board {
             let mut score: i16;
 
             let mut newb = self.do_move(action);
+            data.gamehistory.store(newb.zobrist_key);
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
             if (ispv && num_moves == 0) || (depth <= 3) {
                 score = -newb.negamax::<false>(
@@ -238,9 +240,6 @@ impl Board {
                     starting_ply,
                     &mut newpvline,
                 );
-                if data.timer.stopped {
-                    return 0;
-                }
             } else {
                 // Otherwise, search with a null window to maximize cutoffs
                 score = -newb.negamax::<false>(
@@ -252,9 +251,6 @@ impl Board {
                     starting_ply,
                     &mut newpvline,
                 );
-                if data.timer.stopped {
-                    return 0;
-                }
 
                 if score >= alpha && score < beta {
                     newpvline.clear();
@@ -271,7 +267,10 @@ impl Board {
                     );
                 }
             }
-
+            data.gamehistory.retract();
+            if data.timer.stopped {
+                return 0;
+            }
             if score > best_score {
                 best_score = score;
                 best_pvline = newpvline;
@@ -392,8 +391,8 @@ pub struct SearchData {
     pub ord: OrderData,
     pub timer: Timer,
     pub message_recv: Option<Receiver<Control>>,
+    pub gamehistory: GameHistory,
 }
-
 
 impl SearchData {
     pub fn new(t: Timer) -> Self {
@@ -409,6 +408,7 @@ impl SearchData {
             ord: default_ord,
             timer: t,
             message_recv: None,
+            gamehistory: GameHistory::new(),
         }
     }
     fn clear(&mut self) {
