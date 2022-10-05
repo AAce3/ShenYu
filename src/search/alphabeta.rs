@@ -93,6 +93,7 @@ impl SearchControl {
             Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         self.searchdata.clear();
         self.curr_ply = 0;
+        self.searchdata.gamehistory.positions.clear();
     }
 
     pub fn refresh(&mut self) {
