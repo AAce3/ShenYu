@@ -39,6 +39,9 @@ impl SearchControl {
         let beta = CHECKMATE;
         loop {
             depth += 1;
+            if depth > 64 {
+                break;
+            }
             pv.clear();
             let score = self.curr_board.negamax::<true>(
                 depth,
