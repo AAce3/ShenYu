@@ -125,7 +125,7 @@ impl SearchControl {
                     Control::SetHistory(history) => self.searchdata.gamehistory = *history,
                 }
             }
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_micros(1));
         }
     }
 }
@@ -163,13 +163,13 @@ impl Communicator {
                 }
                 _ => go_next!(),
             }
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_micros(1));
         }
     }
     pub fn identify() {
         println!("id name ShenYu");
         println!("id author Aaron Li");
-        println!("option name Hash type spin default 32 min 0 max 8192");
+        println!("option name Hash type spin default 32 min 0 max 65536");
         println!("option name Clear Hash type button");
         println!("uciok");
     }
@@ -355,7 +355,7 @@ impl Communicator {
 #[macro_export]
 macro_rules! go_next {
     () => {{
-        thread::sleep(Duration::from_millis(1));
+        thread::sleep(Duration::from_micros(1));
         continue;
     }};
 }
