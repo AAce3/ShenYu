@@ -79,7 +79,7 @@ impl SearchControl {
             );
             bestmove = pv[0];
             if depth >= self.searchdata.timer.maxdepth
-                || elapsed * 3 > self.searchdata.timer.time_alloted
+                || elapsed * 4 > self.searchdata.timer.time_alloted
             {
                 break;
             }
