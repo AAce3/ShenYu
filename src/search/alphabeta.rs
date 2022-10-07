@@ -134,7 +134,7 @@ impl Board {
         starting_ply: u8,
         pvline: &mut List<Move>,
     ) -> i16 {
-        if depth > 1 && (self.is_draw() || data.gamehistory.find(self.halfmove_clock)){
+        if depth > 1 && (self.is_draw() || data.gamehistory.find(self.halfmove_clock)) {
             return 0;
         }
 
