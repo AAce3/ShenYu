@@ -30,7 +30,6 @@ pub fn gameloop() {
 
     let mut control = SearchControl {
         searchdata: newdata,
-        curr_ply: 0,
         curr_board: newb,
     };
     let mut comm = Communicator { comm: None };
@@ -368,7 +367,7 @@ macro_rules! send {
 
 impl Board {
     pub fn do_input_move(&mut self, movestring: String) -> Result<Move, u8> {
-        let moves = self.generate_moves::<true, true>();
+        let moves = self.generate_moves::<true, true, 128>();
         let from = &movestring[..2];
         let to = &movestring[2..4];
         let fromsqr = match str_to_sqr(from) {
