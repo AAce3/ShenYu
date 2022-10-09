@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     board_state::{board::Board, zobrist::ZobristKey},
-    move_generation::action::Action,
+    move_generation::{action::Action, movegen::MAX_MOVENUM_QUIET},
 };
 
 pub fn perft_testing() {
@@ -45,11 +45,11 @@ impl Board {
         if depth == 0 {
             1
         } else if depth == 1 {
-            let moves = self.generate_moves::<true, true>();
+            let moves = self.generate_moves::<true, true, MAX_MOVENUM_QUIET>();
             moves.length as u32
         } else {
             let mut accum = 0;
-            let moves = self.generate_moves::<true, true>();
+            let moves = self.generate_moves::<true, true, MAX_MOVENUM_QUIET>();
             for i in 0..moves.length {
                 let action = moves[i as usize];
                 let mut newb = self.do_move(action);
@@ -60,7 +60,7 @@ impl Board {
     }
 
     pub fn divide_perft(&mut self, depth: u8) {
-        let moves = self.generate_moves::<true, true>();
+        let moves = self.generate_moves::<true, true, MAX_MOVENUM_QUIET>();
 
         assert_ne!(depth, 0);
         let mut nodes_searched = 0;
@@ -87,7 +87,7 @@ impl Board {
                 return entry.nodecount;
             }
             let mut accum = 0;
-            let moves = self.generate_moves::<true, true>();
+            let moves = self.generate_moves::<true, true, MAX_MOVENUM_QUIET>();
             for i in 0..moves.length {
                 let action = moves[i as usize];
                 let mut newb = self.do_move(action);

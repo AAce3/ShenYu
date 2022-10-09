@@ -2,7 +2,7 @@ use std::io::{self, BufRead};
 
 use colored::Colorize;
 
-use crate::{board_state::board::Board, move_generation::action::Action};
+use crate::{board_state::board::Board, move_generation::{action::Action, movegen::MAX_MOVENUM_QUIET}};
 // A tool for debugging perft
 // Takes fen, depth and stockfish results and prints differences to stdout
 
@@ -128,7 +128,7 @@ struct MoveData {
 
 impl Board {
     fn debug_perft(&mut self, depth: u8) -> Vec<MoveData> {
-        let moves = self.generate_moves::<true, true>();
+        let moves = self.generate_moves::<true, true, MAX_MOVENUM_QUIET>();
         let mut newmove_vec = vec![
             MoveData {
                 name: String::new(),
