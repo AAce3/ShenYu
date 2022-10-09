@@ -17,13 +17,12 @@ use super::{
     gamehistory::GameHistory,
     moveorder::{CapturePicker, OrderData, StagedGenerator},
     timer::Timer,
-    transposition::{TranspositionTable, ALPHA, BETA, EXACT},
+    transposition::{TranspositionTable, ALPHA, BETA, EXACT}, 
 };
 const CHECKMATE: i16 = 10_000;
 
 pub struct SearchControl {
     pub searchdata: SearchData,
-    pub curr_ply: u16,
     pub curr_board: Board,
 }
 
@@ -48,8 +47,7 @@ impl SearchControl {
                 alpha,
                 beta,
                 &mut self.searchdata,
-                self.curr_ply,
-                self.curr_ply as u8,
+                0,
                 &mut pv,
             );
             if self.searchdata.timer.stopped {
@@ -95,7 +93,6 @@ impl SearchControl {
         self.curr_board =
             Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         self.searchdata.clear();
-        self.curr_ply = 0;
         self.searchdata.gamehistory.positions.clear();
     }
 
@@ -114,7 +111,7 @@ impl SearchControl {
     }
 }
 
-fn format_pv(pv: &List<Move>) -> String {
+fn format_pv(pv: &List<Move, 64>) -> String {
     let mut starting_str = String::new();
     for i in 0..pv.length {
         let thing = pv[i as usize].to_algebraic();
@@ -131,8 +128,7 @@ impl Board {
         beta: i16,
         data: &mut SearchData,
         ply: u16,
-        starting_ply: u8,
-        pvline: &mut List<Move>,
+        pvline: &mut List<Move, 64>,
     ) -> i16 {
         if depth > 1 && (self.is_draw() || data.gamehistory.find(self.halfmove_clock)) {
             return 0;
@@ -193,9 +189,9 @@ impl Board {
             if !ISROOT && tt_data.get_depth() >= depth && shoulduse {
                 if mated_in(score) < 64 && mated_in(score) > -64 {
                     if score.is_positive() {
-                        return score - (ply as i16 - starting_ply as i16);
+                        return score - (ply as i16);
                     } else {
-                        return score + (ply as i16 - starting_ply as i16);
+                        return score + (ply as i16);
                     }
                 }
                 return score;
@@ -203,15 +199,7 @@ impl Board {
         } else if depth >= 4 {
             // If there is no TT move, it's faster to do a shorter search and use that as the best move instead
             let mut newpvline = List::new();
-            self.negamax::<true>(
-                depth - 2,
-                alpha,
-                beta,
-                data,
-                ply,
-                starting_ply,
-                &mut newpvline,
-            );
+            self.negamax::<true>(depth - 2, alpha, beta, data, ply, &mut newpvline);
             if newpvline.length != 0 {
                 bestmove = newpvline[0];
             }
@@ -235,15 +223,8 @@ impl Board {
             data.gamehistory.store(newb.zobrist_key);
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
             if (ispv && num_moves == 0) || (depth <= 3) {
-                score = -newb.negamax::<false>(
-                    depth - 1,
-                    -beta,
-                    -alpha,
-                    data,
-                    ply + 1,
-                    starting_ply,
-                    &mut newpvline,
-                );
+                score =
+                    -newb.negamax::<false>(depth - 1, -beta, -alpha, data, ply + 1, &mut newpvline);
             } else {
                 // Otherwise, search with a null window to maximize cutoffs
                 score = -newb.negamax::<false>(
@@ -252,7 +233,6 @@ impl Board {
                     -alpha,
                     data,
                     ply + 1,
-                    starting_ply,
                     &mut newpvline,
                 );
 
@@ -266,7 +246,6 @@ impl Board {
                         -alpha,
                         data,
                         ply + 1,
-                        starting_ply,
                         &mut newpvline,
                     );
                 }
@@ -320,7 +299,7 @@ impl Board {
         }
         if num_moves == 0 {
             if incheck {
-                return mate_score(ply, starting_ply);
+                return mate_score(ply, 0);
             } else {
                 return 0;
             }
@@ -368,7 +347,7 @@ impl Board {
 
         for action in captures {
             let seevalue = self.see(action);
-            if seevalue + 200 < alpha || seevalue < 100 {
+            if seevalue + 200 < alpha || seevalue < 0 {
                 continue;
             }
             let mut newb = self.do_move(action);
@@ -401,7 +380,7 @@ pub struct SearchData {
 impl SearchData {
     pub fn new(t: Timer) -> Self {
         let default_ord = OrderData {
-            killers: [[0; 2]; 256],
+            killers: [[0; 2]; 64],
             history: [[[0; 64]; 6]; 2],
         };
         let tt = TranspositionTable::new(32);
