@@ -20,16 +20,16 @@ use crate::{
 use super::see::SEEVALUES;
 
 pub struct CapturePicker {
-    pub movelist: List<Move>,
-    pub scorelist: List<i16>,
+    pub movelist: List<Move, 32>,
+    pub scorelist: List<i16, 32>,
     pub curr_idx: usize,
 }
 
-const MAX_HISTORY: i16 = 18_000;
+const MAX_HISTORY: i16 = 32_000;
 impl CapturePicker {
     pub fn new_capturepicker(board: &mut Board) -> CapturePicker {
         let mut picker = CapturePicker {
-            movelist: board.generate_moves::<false, true>(),
+            movelist: board.generate_moves::<false, true, 32>(),
             scorelist: List::new(),
             curr_idx: 0,
         };
@@ -51,7 +51,7 @@ impl Iterator for CapturePicker {
     type Item = Move;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.curr_idx as u8 >= self.scorelist.length {
+        if self.curr_idx >= self.scorelist.length {
             return None;
         }
         let mut bestidx = self.curr_idx;
@@ -71,7 +71,7 @@ impl Iterator for CapturePicker {
 }
 
 pub struct OrderData {
-    pub killers: [[Move; 2]; 256],
+    pub killers: [[Move; 2]; 64],
     pub history: [[[i16; 64]; 6]; 2],
 }
 
@@ -110,7 +110,7 @@ impl OrderData {
     }
     pub fn clear(&mut self) {
         self.history = [[[0; 64]; 6]; 2];
-        self.killers = [[0; 2]; 256];
+        self.killers = [[0; 2]; 64];
     }
 }
 
@@ -201,13 +201,13 @@ impl Board {
 pub struct StagedGenerator {
     pub ttmove: Move,
     pub curr_stage: Stage,
-    captures: List<Move>,
-    capture_scores: List<i16>,
+    captures: List<Move, 32>,
+    capture_scores: List<i16, 32>,
     killers: [Move; 2],
-    losing_captures: List<Move>,
-    lcapture_scores: List<i16>,
-    quiets: List<Move>,
-    quiet_scores: List<i16>,
+    losing_captures: List<Move, 32>,
+    lcapture_scores: List<i16, 32>,
+    quiets: List<Move, 128>,
+    quiet_scores: List<i16, 128>,
     current_index: usize,
     pub board: Board,
     ply: u16,
@@ -243,7 +243,7 @@ impl StagedGenerator {
             }
 
             Stage::GenCaptures => {
-                self.captures = self.board.generate_moves::<false, true>();
+                self.captures = self.board.generate_moves::<false, true, 32>();
                 for i in 0..self.captures.length {
                     // score captures by mvv lva ordering
                     // high value targets take priority
@@ -286,7 +286,7 @@ impl StagedGenerator {
                 Some(currbest)
             }
             Stage::GenQuiets => {
-                self.quiets = self.board.generate_moves::<true, false>();
+                self.quiets = self.board.generate_moves::<true, false, 128>();
                 for i in 0..self.quiets.length {
                     let action = self.quiets[i as usize];
                     match action {
@@ -364,9 +364,34 @@ impl StagedGenerator {
         let (movelist, scorelist) = match self.curr_stage {
             Stage::Captures => (&mut self.captures, &mut self.capture_scores),
             Stage::LCaptures => (&mut self.losing_captures, &mut self.lcapture_scores),
-            Stage::Quiets => (&mut self.quiets, &mut self.quiet_scores),
-            _ => return true,
+            Stage::Quiets => return self.quiet_insertion_sort(),
+            _ => return true, 
         };
+        
+        if self.current_index >= movelist.length as usize {
+            return true;
+        }
+        let mut max_score = i16::MIN;
+        let mut best_idx = self.current_index;
+        for i in self.current_index..(movelist.length as usize) {
+            let score = scorelist[i];
+            if score > max_score {
+                max_score = score;
+                best_idx = i;
+            }
+        }
+        if max_score == i16::MIN {
+            // already generated moves are assigned i16::MIN
+            // it is impossible for any other score to reach that low, so when we get here we know that there are no more moves
+            return true;
+        }
+        movelist.swap(self.current_index, best_idx);
+        scorelist.swap(self.current_index, best_idx);
+        false
+    }
+
+    pub fn quiet_insertion_sort(&mut self) -> bool{
+        let (movelist, scorelist) = (&mut self.quiets, &mut self.quiet_scores);
         if self.current_index >= movelist.length as usize {
             return true;
         }
