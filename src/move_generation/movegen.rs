@@ -28,8 +28,11 @@ pub const BLOCK_CHECKED_KINGSIDE: [Bitboard; 2] = [0x70, 0x7000000000000000];
 pub const BLOCK_CHECKED_QUEENSIDE: [Bitboard; 2] = [0x1c, 0x1c00000000000000];
 
 pub static INBETWEENS: Lazy<[[Bitboard; 64]; 64]> = Lazy::new(generate_inbetweens);
+
+pub const MAX_MOVENUM_QUIET: usize = 128;
+pub const MAX_MOVENUM_CAPTURE: usize = 32;
 impl Board {
-    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool>(&mut self) -> List<Move> {
+    pub fn generate_moves<const QUIETS: bool, const CAPTURES: bool, const MOVENUM: usize>(&mut self) -> List<Move, MOVENUM> {
         // Move generation is separated.
         // First, pins and legal squares are determined.
         // For a king, legal squares are where the enemy does not attack.
