@@ -4,20 +4,20 @@ use std::{
 };
 // Custom list implementation that can be stored on the stack
 #[derive(PartialEq, Eq)]
-pub struct List<T> {
-    pub items: [T; 255],
-    pub length: u8,
+pub struct List<T, const SIZE: usize> {
+    pub items: [T; SIZE],
+    pub length: usize,
 }
 
-impl<T> Default for List<T> {
+impl<T, const SIZE: usize> Default for List<T, SIZE> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> List<T> {
+impl<T, const SIZE: usize> List<T, SIZE> {
     #[allow(clippy::uninit_assumed_init)]
-    pub fn new() -> List<T> {
+    pub fn new() -> List<T, SIZE> {
         Self {
             items: unsafe { mem::MaybeUninit::uninit().assume_init() },
             length: 0,
@@ -48,7 +48,7 @@ impl<T> List<T> {
     }
 }
 
-impl<T> Index<usize> for List<T> {
+impl<T, const SIZE: usize> Index<usize> for List<T, SIZE> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -56,7 +56,7 @@ impl<T> Index<usize> for List<T> {
     }
 }
 
-impl<T> IndexMut<usize> for List<T> {
+impl<T, const SIZE: usize> IndexMut<usize> for List<T, SIZE> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.items[index]
     }
