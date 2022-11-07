@@ -1,7 +1,6 @@
 #![allow(incomplete_features)]
 #![feature(core_intrinsics)]
 #![feature(adt_const_params)]
-#![feature(is_some_with)]
 #![feature(int_roundings)]
 #![feature(exclusive_range_pattern)]
 pub mod board_state;
