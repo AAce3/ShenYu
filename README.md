@@ -29,3 +29,10 @@ and many others.
   - History heuristic
   - Quiescience Search
   - SEE pruning in quiescience search
+## Building and Compiling
+Shen Yu does not come with provided binaries. To compile, install [Rust](https://www.rust-lang.org/tools/install) and clone the repository.
+Then, in your terminal, run 
+```
+cargo build --release
+```
+In the 'target' folder, a folder named 'release' should show up. The executable can be found in that folder, titled "shenyu.exe."
