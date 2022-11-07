@@ -15,7 +15,7 @@ pub fn perft_testing() {
     // Perft uses bulk counting, i.e. rather than playing out moves at frontier nodes it counts the number of moves generated
     // thank you to leorik for test positions
     let path =
-        Path::new(r"C:\Users\aaron\VSCode Projects\shenyu\src\testing\perft_test_positions.txt");
+        Path::new(r"\src\testing\perft_test_positions.txt");
     let file = File::open(path).unwrap();
     let reader = BufReader::new(file);
     for (number, line) in reader.lines().enumerate() {
