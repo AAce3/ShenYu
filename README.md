@@ -31,7 +31,15 @@ and many others.
   - SEE pruning in quiescience search
 ## Building and Compiling
 Shen Yu does not come with provided binaries. To compile, install [Rust](https://www.rust-lang.org/tools/install) and clone the repository.
-Then, in your terminal, run 
+Then, in your terminal, run
+```
+rustup toolchain install nightly
+```
+to switch to the "nightly" version of the compiler. Then,
+```
+rustup default nightly
+```
+Navigate to the project, and
 ```
 cargo build --release
 ```
