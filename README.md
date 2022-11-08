@@ -45,4 +45,4 @@ Navigate to the project, and use
 cargo build --release
 ```
 to generate a compiled binary.
-In the 'target' folder, a folder named 'release' should show up. The executable can be found in that folder, titled "shenyu.exe."
+In the 'target' folder, a folder named 'release' should show up. The executable can be found in that folder, titled "shenyu"
