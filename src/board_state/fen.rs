@@ -1,4 +1,4 @@
-use crate::board_state::{typedefs::SQUARE_NAMES, display};
+use crate::board_state::{display, typedefs::SQUARE_NAMES};
 
 use super::{
     board::Board,
@@ -32,7 +32,6 @@ impl Board {
                 if curr_skip != 0 {
                     let strval = char::from_digit(curr_skip, 10).unwrap();
                     base.push(strval);
-     
                 }
                 curr_skip = 0;
                 let mut relevant_char = PIECECHARS[piece_at as usize];
@@ -49,7 +48,7 @@ impl Board {
         base.push(ACTIVE_COLORS[self.tomove as usize]);
         base += " ";
         base += display::CASTLE_RIGHTS[self.castling_rights as usize];
-        let passantstring = match self.passant_square{
+        let passantstring = match self.passant_square {
             None => "-",
             Some(val) => SQUARE_NAMES[val as usize],
         };
@@ -59,8 +58,9 @@ impl Board {
     }
     // Parse forsyth-edwards notation, returning a result of whether it was successful or not
     pub fn parse_fen(fen: &str) -> Result<Board, u8> {
-        let split_fen = fen.split(' ');
+        let split_fen = fen.split_whitespace();
         let mut starting_board = Board::new();
+
         for (id, part) in split_fen.enumerate() {
             match id as u8 {
                 PIECES => starting_board.set_pieces(part)?,
@@ -111,16 +111,14 @@ impl Board {
     }
 
     fn set_tomove(&mut self, part: &str) -> Result<(), u8> {
-        match part {
-            "w" => {
-                self.tomove = WHITE;
-                Ok(())
-            }
-            "b" => {
-                self.tomove = BLACK;
-                Ok(())
-            }
-            _ => Err(ACTIVE_COLOR),
+        if part == "w" {
+            self.tomove = WHITE;
+            Ok(())
+        } else if part == "b" {
+            self.tomove = BLACK;
+            Ok(())
+        } else {
+            Err(CASTLE_RIGHTS)
         }
     }
 

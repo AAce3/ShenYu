@@ -17,8 +17,9 @@ use crate::{
     },
     search::{
         alphabeta::{SearchControl, SearchData},
+        gamehistory::GameHistory,
         timer::Timer,
-        transposition::TranspositionTable, gamehistory::GameHistory,
+        transposition::TranspositionTable,
     },
 };
 use crate::{go_next, send};
@@ -196,43 +197,52 @@ impl Communicator {
     }
 
     pub fn parse_position(&mut self, cmd: String) {
-        let mut split = cmd.split_whitespace();
-        let input_type = split.nth(1).unwrap_or("");
-        match input_type {
-            "fen" => {
-                if let Some(fen) = split.next() {
-                    if let Ok(newb) = Board::parse_fen(fen) {
-                        let board = Control::SetBoard(newb);
-                        send!(self, board);
-                        let clearhistory = Control::SetHistory(Box::new(GameHistory::new()));
-                        send!(self, clearhistory);
-                    }
-                }
-            }
-            "startpos" => {
-                let mut ghistory = GameHistory::new();
-                let mut newb =
-                    Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-                        .unwrap();
-                for i in split {
-                    if i == "moves" {
-                        continue;
-                    }
-                    match newb.do_input_move(i.to_owned()) {
-                        Ok(action) => {
-                            newb = newb.do_move(action);
-                            ghistory.store(newb.zobrist_key);
-                        }
-                        Err(_) => panic!("What"),
-                    }
-                }
-                let board = Control::SetBoard(newb);
-                send!(self, board);
-                let history = Control::SetHistory(Box::new(ghistory));
-                send!(self, history)
-            }
-            _ => (),
+        let split = cmd.split_whitespace();
+        let mut fenstring = String::new();
+        let mut newboard = Board::new();
+        enum Type {
+            Fen,
+            Moves,
+            None,
         }
+        let mut gamehistory = GameHistory::new();
+        let mut currtype = Type::None;
+        let mut hasmoves = false;
+        for val in split {
+            match val {
+                "position" => continue,
+                "startpos" => {
+                    fenstring =
+                        String::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                }
+                "fen" => currtype = Type::Fen,
+                "moves" => {
+                    hasmoves = true;
+                    let fenstring = fenstring.trim_end();
+                    newboard = Board::parse_fen(fenstring).unwrap();
+                    currtype = Type::Moves;
+                }
+                _ => match currtype {
+                    Type::Fen => {
+                        fenstring += val;
+                        fenstring += " ";
+                    }
+                    Type::Moves => {
+                        let action = newboard.do_input_move(String::from(val)).unwrap();
+                        newboard = newboard.do_move(action);
+                        gamehistory.store(newboard.zobrist_key);
+                    }
+                    Type::None => return,
+                },
+            }
+        }
+        if !hasmoves{
+            newboard = Board::parse_fen(fenstring.trim_end()).unwrap();
+        }
+        let board = Control::SetBoard(newboard);
+        send!(self, board);
+        let history = Control::SetHistory(Box::new(gamehistory));
+        send!(self, history)
     }
 
     pub fn go(&mut self, cmd: String) {
