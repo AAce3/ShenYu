@@ -23,6 +23,7 @@ use crate::{
     },
 };
 use crate::{go_next, send};
+const VERSION: &str = "v1.0.1";
 
 pub fn gameloop() {
     let newb =
@@ -167,7 +168,7 @@ impl Communicator {
         }
     }
     pub fn identify() {
-        println!("id name ShenYu");
+        println!("id name ShenYu {}", VERSION);
         println!("id author Aaron Li");
         println!("option name Hash type spin default 32 min 0 max 65536");
         println!("option name Clear Hash type button");
