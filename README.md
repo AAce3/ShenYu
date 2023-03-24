@@ -2,7 +2,7 @@
 A UCI chess engine written from scratch in rust. It is an original work, but takes inspiration from many other engines.
 Shen Yu is currently in active development.
 
-It has a [CCRL](https://ccrl.chessdom.com/ccrl/) rating of 2162. (Thanks to Gabor Szots for testing!) 
+It has a [CCRL](https://ccrl.chessdom.com/ccrl/) rating of 2219. (Thanks to Gabor Szots for testing!) 
 ## User Interface
 Shen Yu does not come with a user interface. It requires a user interface that implements UCI to run. Popular user interfaces include:
 
