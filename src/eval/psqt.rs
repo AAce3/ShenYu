@@ -1,10 +1,6 @@
 use std::cmp;
 
-use crate::board_state::{
-    bitboard::BB,
-    board::Board,
-    typedefs::{Color, Piece, Sq, Square, BISHOP, BLACK, KNIGHT, PAWN, QUEEN, ROOK, WHITE},
-};
+use crate::movegen::{types::{Square, Piece, Color, square}, board::Board, bitboard};
 
 // pesto psqts
 const PAWN_PHASE: i16 = 0;
@@ -164,83 +160,6 @@ const MG_TABLES: [[i16; 64]; 6] = [MG_PAWN, MG_KNIGHT, MG_BISHOP, MG_ROOK, MG_QU
 
 const EG_TABLES: [[i16; 64]; 6] = [EG_PAWN, EG_KNIGHT, EG_BISHOP, EG_ROOK, EG_QUEEN, EG_KING];
 
-// Uses PeSTO tables for evaluation.
-// Tapered evaluation forms a gradient between middle game and endgame evaluation parameters.
-// e.g. Keep the king safe during middlegame, develop it during endgame.
-// Phase is calculated by material
-
-impl Board {
-    pub fn generate_eval(&self) -> IncrementalEval {
-        let mut white_mg_material = 0;
-        let mut black_mg_material = 0;
-        let mut white_eg_material = 0;
-        let mut black_eg_material = 0;
-
-        let mut phase = 0;
-        let whites = self[WHITE];
-        let blacks = self[BLACK];
-        for (piecetype, bb) in self.pieces.iter().enumerate() {
-            let mut white_pieces = bb & whites;
-            let mut black_pieces = bb & blacks;
-            while white_pieces > 0 {
-                let square = white_pieces.pop_lsb().flip();
-                let mg_value = MG_TABLES[piecetype as usize][square as usize];
-                let eg_value = EG_TABLES[piecetype as usize][square as usize];
-                white_mg_material += mg_value;
-                white_eg_material += eg_value;
-                phase += PHASES[piecetype as usize];
-            }
-            while black_pieces > 0 {
-                let square = black_pieces.pop_lsb();
-                let mg_value = MG_TABLES[piecetype as usize][square as usize];
-                let eg_value = EG_TABLES[piecetype as usize][square as usize];
-                black_mg_material += mg_value;
-                black_eg_material += eg_value;
-                phase += PHASES[piecetype as usize];
-            }
-        }
-        IncrementalEval {
-            phase,
-            mg_material: [white_mg_material, black_mg_material],
-            eg_material: [white_eg_material, black_eg_material],
-        }
-    }
-
-    pub fn evaluate(&self) -> i16 {
-        const MULTIPLIERS: [i16; 2] = [1, -1];
-        let eval = self.evaluator.evaluate();
-        eval * MULTIPLIERS[self.tomove as usize]
-    }
-
-    // material only eval for debugging
-    pub fn beancount(&self) -> i16 {
-        const VALUES: [i16; 6] = [100, 315, 325, 500, 900, 0];
-        let mut value = 0;
-        let wpieces = self[WHITE];
-        let bpieces = self[BLACK];
-        for (idx, piece) in self.pieces.iter().enumerate() {
-            let w = wpieces & piece;
-            let b = bpieces & piece;
-            value += w.count_ones() as i16 * VALUES[idx];
-            value -= b.count_ones() as i16 * VALUES[idx];
-        }
-        value
-    }
-    pub fn is_draw(&self) -> bool {
-        // material draw
-        let can_force_mate = self[PAWN] > 0
-            || self[ROOK] > 0
-            || self[QUEEN] > 0
-            || self.get_pieces(BISHOP, WHITE).count_ones() >= 2
-            || self.get_pieces(BISHOP, BLACK).count_ones() >= 2
-            || (self.get_pieces(BISHOP, WHITE).count_ones() >= 1
-                && self.get_pieces(KNIGHT, WHITE) >= 1)
-            || (self.get_pieces(BISHOP, BLACK).count_ones() >= 1
-                && self.get_pieces(KNIGHT, BLACK) >= 1);
-        !can_force_mate || self.halfmove_clock >= 100
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct IncrementalEval {
     pub phase: i16,
@@ -254,7 +173,45 @@ impl Default for IncrementalEval {
     }
 }
 
-const FLIPS: [u8; 2] = [56, 0];
+impl Board {
+    pub fn generate_eval(&self) -> IncrementalEval {
+        let mut white_mg_material = 0;
+        let mut black_mg_material = 0;
+        let mut white_eg_material = 0;
+        let mut black_eg_material = 0;
+
+        let mut phase = 0;
+        let whites = self.color_bb(Color::W);
+        let blacks =  self.color_bb(Color::B);
+        for (piecetype, bb) in self.pieces().iter().enumerate() {
+            let mut white_pieces = bb & whites;
+            let mut black_pieces = bb & blacks;
+            while white_pieces > 0 {
+                let square = square::flip_v(bitboard::pop_lsb(&mut white_pieces));
+                let mg_value = MG_TABLES[piecetype][square as usize];
+                let eg_value = EG_TABLES[piecetype][square as usize];
+                white_mg_material += mg_value;
+                white_eg_material += eg_value;
+                phase += PHASES[piecetype];
+            }
+            while black_pieces > 0 {
+                let square = bitboard::pop_lsb(&mut black_pieces);
+                let mg_value = MG_TABLES[piecetype][square as usize];
+                let eg_value = EG_TABLES[piecetype][square as usize];
+                black_mg_material += mg_value;
+                black_eg_material += eg_value;
+                phase += PHASES[piecetype];
+            }
+        }
+        IncrementalEval {
+            phase,
+            mg_material: [white_mg_material, black_mg_material],
+            eg_material: [white_eg_material, black_eg_material],
+        }
+    }
+}
+
+const FLIPS: [u8; 2] = [56, 0]; // pesto psqts are mirrored
 impl IncrementalEval {
     pub fn new() -> Self {
         Self {
@@ -263,33 +220,25 @@ impl IncrementalEval {
             eg_material: [0, 0],
         }
     }
-    #[inline]
-    pub fn set_piece(&mut self, square: Square, piecetype: Piece, color: Color) {
-        self.phase += PHASES[piecetype as usize - 1];
+
+    pub fn set_piece(&mut self, square: Square, piece: Piece, color: Color) {
+        self.phase += PHASES[piece as usize];
         let square = square ^ FLIPS[color as usize];
-        let mg_value = MG_TABLES[piecetype as usize - 1][square as usize];
-        let eg_value = EG_TABLES[piecetype as usize - 1][square as usize];
+        let mg_value = MG_TABLES[piece as usize][square as usize];
+        let eg_value = EG_TABLES[piece as usize][square as usize];
         self.mg_material[color as usize] += mg_value;
         self.eg_material[color as usize] += eg_value;
     }
 
-    #[inline]
-    pub fn remove_piece(&mut self, square: Square, piecetype: Piece, color: Color) {
-        self.phase -= PHASES[piecetype as usize - 1];
+    pub fn remove_piece(&mut self, square: Square, piece: Piece, color: Color) {
+        self.phase -= PHASES[piece as usize];
         let square = square ^ FLIPS[color as usize];
-        let mg_value = MG_TABLES[piecetype as usize - 1][square as usize];
-        let eg_value = EG_TABLES[piecetype as usize - 1][square as usize];
+        let mg_value = MG_TABLES[piece as usize][square as usize];
+        let eg_value = EG_TABLES[piece as usize][square as usize];
         self.mg_material[color as usize] -= mg_value;
         self.eg_material[color as usize] -= eg_value;
     }
 
-    #[inline]
-    pub fn move_piece(&mut self, from: Square, to: Square, piecetype: Piece, color: Color) {
-        self.remove_piece(from, piecetype, color);
-        self.set_piece(to, piecetype, color)
-    }
-
-    #[inline]
     pub fn evaluate(&self) -> i16 {
         let mg_score = self.mg_material[0] as i32 - self.mg_material[1] as i32;
         let eg_score = self.eg_material[0] as i32 - self.eg_material[1] as i32;

@@ -3,7 +3,7 @@ use std::{cmp, time::Instant};
 pub struct Timer {
     pub time_alloted: u64, //ms
     pub max_nodes: u64,
-    pub maxdepth: u8,
+    pub max_depth: u8,
     pub start_time: Instant,
     pub is_timed: bool,
     pub stopped: bool,
@@ -18,7 +18,7 @@ impl Timer {
         Timer {
             time_alloted: u64::MAX,
             max_nodes: u64::MAX,
-            maxdepth: u8::MAX,
+            max_depth: u8::MAX,
             start_time: Instant::now(),
             is_timed: false,
             stopped: false,
@@ -37,7 +37,7 @@ impl Timer {
     pub fn refresh(&mut self) {
         self.time_alloted = u64::MAX;
         self.max_nodes = u64::MAX;
-        self.maxdepth = u8::MAX;
+        self.max_depth = u8::MAX;
         self.start_time = Instant::now();
         self.is_timed = false;
         self.stopped = false;
