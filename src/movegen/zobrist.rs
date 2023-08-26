@@ -24,10 +24,6 @@ pub fn turn_zobrist() -> Zobrist {
     ZOBRISTS.active_color
 }
 
-pub fn halfmove_zobrist(value: u8) -> Zobrist {
-    ZOBRISTS.halfmove_clock[value as usize]
-}
-
 mod zobrists {
     use std::array;
 
@@ -45,13 +41,12 @@ mod zobrists {
         pub piece_squares: [[[Zobrist; 64]; 6]; 2],
         pub castling_rights: [[Zobrist; 2]; 4],
         pub passant_file: [Zobrist; 8],
-        pub halfmove_clock: [Zobrist; 50],
         pub active_color: Zobrist,
     }
 
     impl ZobristContainer {
         fn new() -> Self {
-            let mut generator: StdRng = SeedableRng::from_seed([125_u8; 32]);
+            let mut generator: StdRng = SeedableRng::from_seed([255_u8; 32]);
             ZobristContainer {
                 piece_squares: array::from_fn(|_| {
                     array::from_fn(|_| array::from_fn(|_| generator.gen()))
@@ -59,7 +54,6 @@ mod zobrists {
                 castling_rights: array::from_fn(|_| array::from_fn(|_| generator.gen())),
                 passant_file: array::from_fn(|_| generator.gen()),
                 active_color: generator.gen(),
-                halfmove_clock: array::from_fn(|_| generator.gen()),
             }
         }
     }
