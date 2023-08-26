@@ -23,7 +23,6 @@ pub struct Searcher {
 
 
 pub(super) const CHECKMATE: i16 = 10_000;
-const WINDOW_SIZE: i16 = 50;
 
 pub(super) type PVLine = List<Action, 64>;
 impl Searcher {
@@ -34,8 +33,8 @@ impl Searcher {
         let mut best_move = Action::default();
         let mut pv = PVLine::new();
         let mut depth = 0;
-        let mut alpha = -CHECKMATE;
-        let mut beta = CHECKMATE;
+        let alpha = -CHECKMATE;
+        let beta = CHECKMATE;
         loop {
             depth += 1;
             if depth >= MAX_DEPTH as u8 {
@@ -81,7 +80,7 @@ impl Searcher {
             );
             best_move = pv[0];
             if depth >= self.timer.max_depth
-                || elapsed * 4 > self.timer.time_alloted
+                || elapsed * 3 > self.timer.time_alloted
             {
                 break;
             }
@@ -96,7 +95,7 @@ impl Searcher {
             nodecount: 0,
             qnodecount: 0,
             timer: Timer::default(),
-            tt: TranspositionTable::new(32),
+            tt: TranspositionTable::new(256),
             stop: recv,
             board: Board::new(),
             ord: OrderData::new(),
