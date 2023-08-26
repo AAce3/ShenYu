@@ -1,17 +1,32 @@
 use crate::movegen::genmoves::GenType;
 
-use super::{
-    action::Action,
-    board::Board,
-    movelist::{MoveList},
-    zobrist::Zobrist,
-};
+use super::{board::Board, movelist::MoveList};
 
+#[allow(dead_code)]
+pub fn perft_debug() {
+    let args: Vec<String> = std::env::args().collect();
 
+    if args.len() < 3 || args.len() > 4 {
+        eprintln!("Usage: {} <depth> <fen> [moves]", args[0]);
+        std::process::exit(1);
+    }
+
+    let depth: u8 = args[1].parse().expect("Invalid depth");
+    let fen = &args[2];
+
+    let mut board = Board::default();
+    board.parse_fen(fen).unwrap();
+
+    if args.len() == 4 {
+        let moves = args[3].split_whitespace();
+        board.parse_moves(moves);
+    }
+
+    board.divide_perft(depth);
+}
 
 impl Board {
     pub fn divide_perft(&mut self, depth: u8) {
-
         let mut start_list = MoveList::new();
         self.genmoves::<{ GenType::ALL }>(&mut start_list);
         let mut total_nodes = 0;
@@ -26,9 +41,6 @@ impl Board {
         }
         println!("\n{}", total_nodes);
     }
-
-
-
 
     fn perft(&mut self, depth: u8) -> u64 {
         if depth == 0 {
