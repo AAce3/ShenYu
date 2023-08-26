@@ -13,6 +13,12 @@ pub struct List<T, const N: usize> {
     length: usize,
 }
 
+impl<T, const N: usize> Default for List<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, const N: usize> List<T, N> {
     #[allow(clippy::uninit_assumed_init)]
     pub fn new() -> Self {
@@ -56,7 +62,7 @@ impl<T, const N: usize> List<T, N> {
 }
 
 impl<T: Copy, const N: usize> List<T, N> {
-    pub fn partial_insertion_sort<F>(&mut self, idx: usize, value_func: F) -> Option<(T)>
+    pub fn partial_insertion_sort<F>(&mut self, idx: usize, value_func: F) -> Option<T>
     where
         F: Fn(&T) -> i16,
     {
