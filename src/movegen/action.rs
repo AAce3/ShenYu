@@ -111,6 +111,18 @@ impl Action {
 }
 
 impl Board {
+    pub fn make_nullmove(&mut self) {
+        self.push_info();
+        self.reset_fifty();
+        self.reset_passant();
+        self.swap_sides();
+    }
+
+    pub fn unmake_nullmove(&mut self) {
+        self.swap_sides();
+        self.pop_info();
+    }
+    
     pub fn make_move(&mut self, action: Action) {
         self.push_info(); // create a new info store
         self.increment_fifty();
