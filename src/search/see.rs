@@ -14,7 +14,7 @@ impl Board {
     pub fn mvv_lva(&self, action: Action) -> i16 {
         let victim = self.get_piece(action.to());
         let attacker = self.get_piece(action.from());
-        let attackervalue = if attacker == Piece::K { 0 } else { SEEVALUES[attacker as usize] / 16 };
+        let attackervalue =  SEEVALUES[attacker as usize] / 8 ;
         SEEVALUES[victim as usize] - attackervalue
     }
 }
