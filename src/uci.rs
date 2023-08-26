@@ -1,7 +1,7 @@
 use std::{
     cmp, io,
     sync::{Arc, Mutex},
-    thread, time::Duration,
+    thread,
 };
 
 use crate::{
@@ -37,17 +37,33 @@ pub fn gameloop() {
     let searchdata_ptr = Arc::new(Mutex::new(Searcher::new(rx)));
     let mut cmd = String::new();
     loop {
-        let searchdata_clone = searchdata_ptr.clone();
-        let mut searchdata = searchdata_clone.lock().unwrap();
-
         cmd.clear();
         io::stdin().read_line(&mut cmd).unwrap();
         let mut split = cmd.split_ascii_whitespace();
         let command_type = split.next().unwrap_or(&cmd);
+
         match command_type {
-            "uci" => identify(),
+            "uci" => {
+                identify();
+                continue;
+            }
+            "isready" => {
+                println!("readyok");
+                continue;
+            }
+            "stop" => {
+                tx.send(true).unwrap();
+                continue;
+            }
+            "quit" => return,
+            _ => (),
+        }
+
+        let searchdata_clone = searchdata_ptr.clone();
+        let mut searchdata = searchdata_clone.lock().unwrap();
+
+        match command_type {
             "setoption" => set_option(&mut searchdata, split),
-            "isready" => println!("readyok"),
             "ucinewgame" => searchdata.reset(),
             "position" => parse_position(&mut searchdata, split),
             "go" => {
@@ -58,11 +74,7 @@ pub fn gameloop() {
                     println!("executed");
                     searcher.search();
                 });
-               // todo!("Fix locking issue");
-                thread::sleep(Duration::from_millis(10));
             }
-            "stop" => tx.send(true).unwrap(),
-            "quit" => return,
             _ => continue,
         }
     }
@@ -98,7 +110,7 @@ where
             }
         }
         "Clear Hash" | "clear hash" => searchdata.clear_hash(),
-        _ => return,
+        _ => (),
     }
 }
 
@@ -245,9 +257,9 @@ where
     }
     let b_best_time = cmp::min(Timer::allocate_time(btime, binc), movetime);
     let is_timed_b = b_best_time < 500_000;
-    if searchdata.get_board().active_color() == Color::W {
+    if searchdata.get_board().active_color() == Color::B {
         searchdata.timer.is_timed = is_timed_b;
-        searchdata.timer.time_alloted = w_best_time;
+        searchdata.timer.time_alloted = b_best_time;
     }
     searchdata.timer.max_nodes = max_nodes;
     searchdata.timer.max_depth = max_depth;
