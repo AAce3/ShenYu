@@ -1,7 +1,6 @@
 use crate::eval::psqt::IncrementalEval;
 
 use super::{
-    action::Action,
     bitboard::{self, Bitboard},
     types::{square, Color, Piece, Square},
     zobrist::{self, Zobrist},
@@ -156,21 +155,31 @@ impl Board {
         self.piece_bbs[piecetype as usize]
     }
 
-    pub fn is_repetition(&self) -> bool {
+    pub fn is_repetition(&self, count: usize) -> bool {
         let hmc = self.halfmove_clock();
         let zobrist = self.zobrist();
         if hmc < 4 {
             return false;
         }
 
-        return self
-            .info
-            .iter()
-            .rev()
-            .take(hmc as usize + 1)
-            .step_by(2)
-            .skip(1)
-            .any(|a| a.zobrist == zobrist);
+        let mut num_reps = 0;
+        for i in (0..self.info.len()).rev().take(hmc as usize + 1).step_by(2).skip(1) {
+            if self.info[i].zobrist == zobrist {
+                num_reps += 1;
+                if num_reps >= count {
+                    return true;
+
+                }
+            }
+        }
+        false
+    }
+
+    pub fn is_kp(&self) -> bool {
+        self.piecetype(Piece::N) == 0
+            && self.piecetype(Piece::B) == 0
+            && self.piecetype(Piece::R) == 0
+            && self.piecetype(Piece::Q) == 0
     }
 }
 
@@ -213,11 +222,7 @@ impl Board {
     }
 
     pub(super) fn set_fifty(&mut self, value: u8) {
-        let current_halfmove = self.halfmove_clock();
         self.current_info_mut().halfmove_clock = value;
-
-        *self.zobrist_mut() ^= zobrist::halfmove_zobrist(current_halfmove);
-        *self.zobrist_mut() ^= zobrist::halfmove_zobrist(value);
     }
 
     pub(super) fn reset_fifty(&mut self) {
