@@ -1,7 +1,7 @@
 use std::cmp;
 
 use crate::movegen::{
-    action::{Action, MoveType},
+    action::Action,
     board::Board,
     genmoves::GenType,
     movelist::MoveList,
@@ -49,6 +49,9 @@ impl StagedGenerator {
             match self.stage {
                 Stage::HashMove => {
                     self.stage = Stage::GenCaptures;
+                    if self.ttmove == Action::default() {
+                        continue;
+                    }
                     if board.is_pseudolegal(self.ttmove) {
                         return Some((self.ttmove, Stage::HashMove));
                     } else {
@@ -137,13 +140,13 @@ impl StagedGenerator {
                         return Some((*action, Stage::LCaptures));
                     } else {
                         self.stage = Stage::GenQuiets;
-                        self.idx = self.movelist.len(); // normal moves are appended onto original movelist
+                        self.idx = 0;
                         continue;
                     }
                 }
                 Stage::GenQuiets => {
                     board.genmoves::<{ GenType::QUIETS }>(&mut self.movelist);
-                    for action in self.movelist.iter_mut().skip(self.idx) {
+                    for action in self.movelist.iter_mut() {
                         if **action != self.ttmove
                             && **action != killers[0]
                             && **action != killers[1]
