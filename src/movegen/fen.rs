@@ -4,7 +4,7 @@ use super::board::{Board, Castling};
 use anyhow::{bail, Context, Result};
 
 impl Board {
-    pub fn parse_fen(&mut self, fen: &String) -> Result<()> {
+    pub fn parse_fen(&mut self, fen: &str) -> Result<()> {
         *self = Self::default();
         let mut split_fen = fen.split_whitespace();
         let mut square = 56;
