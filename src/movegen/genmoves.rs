@@ -1,9 +1,10 @@
 use super::{
-    action::{Action, MoveType, ScoredMove},
+    action::{Action, MoveType},
     atks,
     bitboard::{self, Bitboard, Direction},
     board::{Board, Castling},
-    types::{square, Color, Piece, Square}, movelist::{MoveList, List},
+    movelist::MoveList,
+    types::{square, Color, Piece, Square},
 };
 
 pub struct GenType;
@@ -122,13 +123,16 @@ impl Board {
 
                 if self.get_piece(action.from()) == Piece::K {
                     self.generate_castles(
-                        self.generate_atk_mask(them, self.occupancy() ^ self.piece_bb(Piece::K, us)),
+                        self.generate_atk_mask(
+                            them,
+                            self.occupancy() ^ self.piece_bb(Piece::K, us),
+                        ),
                         &mut movelist,
                     );
                     return movelist.iter().any(|&a| *a == action);
                 }
             }
-            
+
             MoveType::Promotion => {
                 let eighth_rank = select!(us, 7, 0);
                 if self.get_piece(action.from()) == Piece::P
@@ -165,10 +169,7 @@ impl Board {
         false
     }
 
-    pub fn genmoves<const STAGE: u8>(
-        &mut self,
-        movelist: &mut MoveList,
-    ) {
+    pub fn genmoves<const STAGE: u8>(&mut self, movelist: &mut MoveList) {
         assert!(STAGE != 0);
         let us = self.active_color();
         let them = !us;
@@ -235,19 +236,10 @@ impl Board {
             if GenType::is_captures(STAGE) {
                 // promotions are cooler. generate them first.
                 self.pawn_forwards::<true>(free_pawns, occ, legals, movelist);
-                self.pawn_forwards::<true>(
-                    r_pinned_pawns,
-                    occ,
-                    legals & rook_pinmask,
-                    movelist,
-                );
+                self.pawn_forwards::<true>(r_pinned_pawns, occ, legals & rook_pinmask, movelist);
                 self.pawn_captures::<true>(free_pawns, safe_capture, movelist);
-                self.pawn_captures::<true>(
-                    b_pinned_pawns,
-                    safe_capture & bishop_pinmask,
-                    movelist,
-                );
-                self.pawn_captures::<false>(free_pawns, safe_capture,  movelist);
+                self.pawn_captures::<true>(b_pinned_pawns, safe_capture & bishop_pinmask, movelist);
+                self.pawn_captures::<false>(free_pawns, safe_capture, movelist);
                 // likewise, bishop pinned pawns can capture if they are on the right squares
                 self.pawn_captures::<false>(
                     b_pinned_pawns,
@@ -258,12 +250,7 @@ impl Board {
             if GenType::is_quiet(STAGE) {
                 self.pawn_forwards::<false>(free_pawns, occ, legals, movelist);
                 // pawns pinned by a rook can move forward if it's still blocking
-                self.pawn_forwards::<false>(
-                    r_pinned_pawns,
-                    occ,
-                    legals & rook_pinmask,
-                    movelist,
-                );
+                self.pawn_forwards::<false>(r_pinned_pawns, occ, legals & rook_pinmask, movelist);
             }
         }
 
