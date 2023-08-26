@@ -24,8 +24,8 @@ impl Searcher {
         beta: i16,
         pvline: &mut List<Action, 64>,
     ) -> i16 {
-        if depth > 1 && (self.board.is_draw() || self.board.is_repetition()) {
-            // todo: repetition detection
+        let count = if IS_ROOT { 2 } else { 1 };
+        if depth > 1 && (self.board.is_draw() || self.board.is_repetition(count)) {
             return 0;
         }
 
@@ -86,7 +86,7 @@ impl Searcher {
 
             // if we can use the score, then return that.
             if !IS_ROOT && tt_data.get_depth() >= depth && shoulduse {
-                if mated_in(score) < 64 && mated_in(score) > -64 {
+                if mated_in(score) < MAX_DEPTH as i16 && mated_in(score) > -(MAX_DEPTH as i16) {
                     if score.is_positive() {
                         return score - (ply as i16);
                     } else {
@@ -94,13 +94,30 @@ impl Searcher {
                     }
                 }
                 return score;
-            } else if depth >= 4 {
-                // If there is no TT move, it's faster to do a shorter search and use that as the best move instead
-                let mut new_pv_line = PVLine::new();
-                self.alphabeta::<true>(depth - 2, ply, alpha, beta, &mut new_pv_line);
-                if new_pv_line.len() != 0 {
-                    best_move = new_pv_line[0];
-                }
+            }
+        }
+
+        let eval = self.board.evaluate();
+        // null move pruning
+        if !in_check && eval >= beta && depth >= 4 && !self.board.is_kp() {
+            self.board.make_nullmove();
+            let reduction = 3;
+            let mut new_pvline = PVLine::new();
+            let score = self.alphabeta::<false>(
+                depth - 1 - reduction,
+                ply + 1,
+                -beta,
+                -beta + 1,
+                &mut new_pvline,
+            );
+            self.board.unmake_nullmove();
+
+            if self.timer.stopped {
+                return 0;
+            }
+
+            if score >= beta {
+                return beta;
             }
         }
 
@@ -127,9 +144,15 @@ impl Searcher {
             let mut score: i16;
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
             if (is_pv && num_moves == 0) || (depth <= 3) {
-                score = -self.alphabeta::<false>(depth - 1, ply + 1, -beta, -alpha, &mut new_pv_line);
+                score =
+                    -self.alphabeta::<false>(depth - 1, ply + 1, -beta, -alpha, &mut new_pv_line);
             } else {
-                // Otherwise, search with a null window to maximize cutoffs
+                let new_depth = if stage == Stage::Quiets || stage == Stage::Killers {
+                    depth - 1
+                } else {
+                    depth
+                };
+                // Otherwise, search with a null window with less depth to maximize cutoffs
                 score = -self.alphabeta::<false>(
                     depth - 1,
                     ply + 1,
@@ -142,11 +165,16 @@ impl Searcher {
                     new_pv_line.clear();
                     new_pv_line.push(action);
                     // If the score is within the bounds then we have to do a full window re-search to get the true score
-                    score =
-                        -self.alphabeta::<false>(depth - 1, ply + 1, -beta, -alpha, &mut new_pv_line);
+                    score = -self.alphabeta::<false>(
+                        depth - 1,
+                        ply + 1,
+                        -beta,
+                        -alpha,
+                        &mut new_pv_line,
+                    );
                 }
             }
-
+            num_moves += 1;
             self.board.unmake_move(action);
 
             if self.timer.stopped {
@@ -174,12 +202,10 @@ impl Searcher {
                         self.ord.update_killer(action, ply);
                     }
                     stored_move = true;
-                    num_moves += 1;
+
                     break;
                 }
             }
-
-            num_moves += 1;
         }
 
         let nodetype = if raised_alpha { EXACT } else { ALPHA };
@@ -247,7 +273,7 @@ impl Searcher {
         if ply >= 6 {
             return alpha;
         }
-        
+
         let captures = QSearchGenerator::new(&mut self.board);
         for action in captures {
             let seevalue = self.board.see(action);
