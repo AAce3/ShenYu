@@ -13,6 +13,7 @@ pub enum Piece {
 }
 
 impl From<u8> for Piece {
+    #[inline]
     fn from(value: u8) -> Self {
         unsafe { mem::transmute::<u8, Piece>(value) }
     }
@@ -65,26 +66,32 @@ pub mod square {
 
     use super::Square;
 
+    #[inline]
     pub const fn rank_of(square: Square) -> u8 {
         square / 8
     }
 
+    #[inline]
     pub const fn file_of(square: Square) -> u8 {
         square % 8
     }
 
+    #[inline]
     pub const fn new_sq(rank: u8, file: u8) -> Square {
         rank * 8 + file
     }
 
+    #[inline]
     pub const fn flip_v(square: Square) -> Square {
         square ^ 56
     }
 
+    #[inline]
     pub const fn flip_h(square: Square) -> Square {
         square ^ 7
     }
 
+    #[inline]
     pub(in super::super) const fn shift(square: Square, direction: Direction) -> Square {
         match direction {
             Direction::N => square + 8,
@@ -127,7 +134,6 @@ pub mod square {
 
         SQUARE_NAMES[square as usize]
     }
-
 
     pub const A1: Square = 0;
     pub const B1: Square = 1;
