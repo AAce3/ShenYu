@@ -29,10 +29,8 @@ impl<T, const N: usize> List<T, N> {
     }
 
     pub fn push(&mut self, action: T) {
-        if self.length < self.items.len() {
-            self.items[self.length] = action;
-            self.length += 1;
-        }
+        self.items[self.length] = action;
+        self.length += 1;
     }
 
     pub fn len(&self) -> usize {
