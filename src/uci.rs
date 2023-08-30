@@ -67,11 +67,12 @@ pub fn gameloop() {
             "ucinewgame" => searchdata.reset(),
             "position" => parse_position(&mut searchdata, split),
             "go" => {
-                parse_go(&mut searchdata, split);
+                if parse_go(&mut searchdata, split) {
+                    continue;
+                }
                 drop(searchdata);
                 thread::spawn(move || {
                     let mut searcher = searchdata_clone.lock().unwrap();
-                    println!("executed");
                     searcher.search();
                 });
             }
@@ -156,7 +157,7 @@ where
     }
 }
 
-fn parse_go<'a, T>(searchdata: &mut Searcher, string_iter: T)
+fn parse_go<'a, T>(searchdata: &mut Searcher, string_iter: T) -> bool
 where
     T: Iterator<Item = &'a str>,
 {
@@ -172,6 +173,7 @@ where
         Nodes,
         MoveTime,
         Infinite,
+        Perft,
     }
 
     let mut wtime = u64::MAX;
@@ -198,6 +200,7 @@ where
             "movetime" => curr_type = Type::MoveTime,
             "infinite" => curr_type = Type::Infinite,
             "nodes" => curr_type = Type::Nodes,
+            "perft" => curr_type = Type::Perft,
             _ => match curr_type {
                 Type::Ponder => {
                     curr_type = Type::Infinite;
@@ -245,6 +248,11 @@ where
                     max_nodes = num;
                 }
                 Type::Infinite => continue,
+                Type::Perft => {
+                    let depth = str::parse::<u8>(part).unwrap_or(0);
+                    searchdata.get_board().divide_perft(depth);
+                    return true;
+                },
             },
         }
     }
@@ -263,4 +271,5 @@ where
     }
     searchdata.timer.max_nodes = max_nodes;
     searchdata.timer.max_depth = max_depth;
+    false
 }
