@@ -96,7 +96,7 @@ impl Searcher {
             nodecount: 0,
             qnodecount: 0,
             timer: Timer::default(),
-            tt: TranspositionTable::new(32),
+            tt: TranspositionTable::new(64),
             stop: recv,
             board: Board::new(),
             ord: OrderData::new(),
@@ -134,6 +134,9 @@ impl Searcher {
 pub fn format_pv(pv: &PVLine) -> String {
     let mut starting_str = String::new();
     for action in pv.iter() {
+        if *action == Action::default() {
+            break;
+        }
         write!(&mut starting_str, " {}", action).unwrap();
     }
     starting_str
