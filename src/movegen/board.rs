@@ -360,6 +360,6 @@ impl Board {
     #[inline]
     pub(super) fn pop_info(&mut self) {
         self.info.pop();
-        assert!(!self.info.is_empty());
+        debug_assert!(!self.info.is_empty());
     }
 }
