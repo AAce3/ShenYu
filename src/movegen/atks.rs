@@ -30,7 +30,7 @@ pub fn in_btwn_atks(square1: Square, square2: Square) -> Bitboard {
 mod magics {
     use std::{
         array,
-        ops::{Index, IndexMut},
+        ops::{Index, IndexMut}
     };
 
     use static_init::dynamic;
