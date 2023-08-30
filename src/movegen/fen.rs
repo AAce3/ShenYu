@@ -34,7 +34,7 @@ impl Board {
                     Color::B
                 };
 
-                self.add_piece(square, *piece, piece_color);
+                self.add_piece::<true>(square, *piece, piece_color);
                 square += 1
             }
         }
