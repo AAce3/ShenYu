@@ -12,23 +12,24 @@ use crate::{
 const VERSION: &str = "2.0.0";
 
 impl Board {
-    pub fn parse_moves<'a, T>(&mut self, actions: T)
+    pub fn parse_moves<'a, T>(&mut self, actions: T) -> Option<()>
     where
         T: Iterator<Item = &'a str>,
     {
         for movestring in actions {
-            self.parse_move(movestring);
+            self.parse_move(movestring)?;
         }
+        Some(())
     }
 
-    fn parse_move(&mut self, movestring: &str) {
+    fn parse_move(&mut self, movestring: &str) -> Option<()> {
         let mut list = MoveList::new();
         self.genmoves::<{ GenType::ALL }>(&mut list);
         let action = list
             .iter()
-            .find(|&action| action.to_string() == movestring)
-            .expect("Invalid move!");
+            .find(|&action| action.to_string() == movestring)?;
         self.make_move(**action);
+        Some(())
     }
 }
 
@@ -52,7 +53,7 @@ pub fn gameloop() {
                 continue;
             }
             "stop" => {
-                tx.send(true).unwrap();
+                tx.send(true).expect("Error: Search Thread Disconnected");
                 continue;
             }
             "quit" => return,
@@ -97,12 +98,12 @@ fn set_option<'a, T>(searchdata: &mut Searcher, mut string_iter: T)
 where
     T: Iterator<Item = &'a str>,
 {
-    if string_iter.next().unwrap() != "name" {
+    if string_iter.next().unwrap_or_default() != "name" {
         println!("Invalid uci command");
         return;
     }
 
-    let option_type = string_iter.next().unwrap();
+    let option_type = string_iter.next().unwrap_or_default();
     match option_type {
         "Hash" | "hash" => {
             let next = string_iter.next().unwrap();
@@ -147,13 +148,20 @@ where
                     fen_string += value;
                     fen_string += " "
                 }
-                Type::Moves => board.parse_move(value),
+                Type::Moves => {
+                    if board.parse_move(value).is_none() {
+                        return;
+                    }
+                }
                 Type::None => return,
             },
         }
     }
     if !has_moves {
-        board.parse_fen(&fen_string).unwrap();
+        let res = board.parse_fen(&fen_string);
+        if res.is_err() {
+            println!("Invalid fen!");
+        }
     }
 }
 
@@ -252,7 +260,7 @@ where
                     let depth = str::parse::<u8>(part).unwrap_or(0);
                     searchdata.get_board().divide_perft(depth);
                     return true;
-                },
+                }
             },
         }
     }
