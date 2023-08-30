@@ -1,4 +1,8 @@
-use std::{mem, fmt::{self, Write}, ops::Deref};
+use std::{
+    fmt::{self, Write},
+    mem,
+    ops::Deref,
+};
 
 use super::{
     board::Board,
@@ -15,7 +19,6 @@ pub struct ScoredMove {
 }
 
 impl ScoredMove {
-
     pub fn score(&self) -> i16 {
         self.score
     }
@@ -45,7 +48,6 @@ impl Deref for ScoredMove {
 // 0000 1111 1100 0000 <- Move To
 // 0011 0000 0000 0000 <- Move Type
 // 1100 0000 0000 0000  <- Promotion
-
 
 // promotion: N = 0, B = 1, R = 2, Q = 3. Exactly 2 bits
 // to retrive original piece, just add 1. Normally, N = 1, B = 2, etc.
@@ -89,7 +91,10 @@ impl Action {
     }
 
     pub fn new_pr(from: Square, to: Square, pr_piece: Piece) -> Self {
-        let num = (from as u16) | (to as u16) << 6 | (MoveType::Promotion as u16) << 12 | (pr_piece as u16 - 1) << 14;
+        let num = (from as u16)
+            | (to as u16) << 6
+            | (MoveType::Promotion as u16) << 12
+            | (pr_piece as u16 - 1) << 14;
         Self(num)
     }
 
@@ -122,22 +127,18 @@ impl Board {
         self.swap_sides();
         self.pop_info();
     }
-    
+
     pub fn make_move(&mut self, action: Action) {
         self.push_info(); // create a new info store
         self.increment_fifty();
         self.reset_passant();
-        let from = action.from();
-        let to = action.to();
-        let move_type = action.move_type();
-        let us = self.active_color();
-        
-        let them = !us;
+        let (from, to, move_type) = (action.from(), action.to(), action.move_type());
+        let (us, them) = (self.active_color(), !self.active_color());
+
         let mut update_castle = false; // flag to update castle, used if rook or king moves
 
         match move_type {
             MoveType::Normal => {
-              
                 // check if the move is a capture
                 if self.is_color(to, them) {
                     let captured_piece = self.get_piece(to);
@@ -163,14 +164,14 @@ impl Board {
                     update_castle = true
                 }
 
-                self.move_piece(from, to, moving_piece, us)
+                self.move_piece::<true>(from, to, moving_piece, us)
             }
             MoveType::Castle => {
                 update_castle = true;
                 let (rook_from, rook_to) = get_castling_squares(to);
 
-                self.move_piece(from, to, Piece::K, us);
-                self.move_piece(rook_from, rook_to, Piece::R, us);
+                self.move_piece::<true>(from, to, Piece::K, us);
+                self.move_piece::<true>(rook_from, rook_to, Piece::R, us);
             }
             MoveType::Promotion => {
                 // again, check for capture
@@ -182,14 +183,14 @@ impl Board {
                     }
                 }
                 self.reset_fifty();
-                self.remove_piece(from, Piece::P, us);
-                self.add_piece(to, action.pr_piece(), us);
+                self.remove_piece::<true>(from, Piece::P, us);
+                self.add_piece::<true>(to, action.pr_piece(), us);
             }
             MoveType::Passant => {
                 self.reset_fifty();
                 let captured_square = to ^ 8;
-                self.remove_piece(captured_square, Piece::P, them);
-                self.move_piece(from, to, Piece::P, us);
+                self.remove_piece::<true>(captured_square, Piece::P, them);
+                self.move_piece::<true>(from, to, Piece::P, us);
             }
         }
 
@@ -210,24 +211,24 @@ impl Board {
         match move_type {
             MoveType::Normal => {
                 let moving_piece = self.get_piece(to);
-                self.move_piece(to, from, moving_piece, us);
+                self.move_piece::<false>(to, from, moving_piece, us);
                 self.restore_piece(to, them);
             }
             MoveType::Castle => {
                 let (rook_from, rook_to) = get_castling_squares(to);
-                self.move_piece(to, from, Piece::K, us);
-                self.move_piece(rook_to, rook_from, Piece::R, us);
+                self.move_piece::<false>(to, from, Piece::K, us);
+                self.move_piece::<false>(rook_to, rook_from, Piece::R, us);
             }
             MoveType::Promotion => {
-                self.remove_piece(to, action.pr_piece(), us);
-                self.add_piece(from, Piece::P, us);
+                self.remove_piece::<false>(to, action.pr_piece(), us);
+                self.add_piece::<false>(from, Piece::P, us);
                 self.restore_piece(to, them);
-            },
+            }
             MoveType::Passant => {
                 let captured_square = to ^ 8;
-                self.add_piece(captured_square, Piece::P, them);
-                self.move_piece(to, from, Piece::P, us);
-            },
+                self.add_piece::<false>(captured_square, Piece::P, them);
+                self.move_piece::<false>(to, from, Piece::P, us);
+            }
         }
         self.pop_info()
     }
