@@ -46,7 +46,7 @@ mod zobrists {
 
     impl ZobristContainer {
         fn new() -> Self {
-            let mut generator: StdRng = SeedableRng::from_seed([255_u8; 32]);
+            let mut generator: StdRng = SeedableRng::from_seed([128_u8; 32]);
             ZobristContainer {
                 piece_squares: array::from_fn(|_| {
                     array::from_fn(|_| array::from_fn(|_| generator.gen()))
