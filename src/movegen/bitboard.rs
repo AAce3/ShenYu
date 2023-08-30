@@ -51,7 +51,7 @@ pub(super) const fn popcount(bitboard: Bitboard) -> u8 {
 
 #[inline]
 pub(super) const fn lsb(bitboard: Bitboard) -> Square {
-    assert!(bitboard != 0);
+    debug_assert!(bitboard != 0);
     bitboard.trailing_zeros() as Square
 }
 
