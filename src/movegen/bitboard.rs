@@ -3,68 +3,82 @@ use super::types::{square, Color, Square};
 
 pub type Bitboard = u64;
 
+#[inline]
 pub(crate) const fn new_bb(square: Square) -> Bitboard {
     1 << square
 }
 
+#[inline]
 pub(super) const fn rank_bb(number: u8) -> Bitboard {
     0xff << (number * 8)
 }
 
+#[inline]
 pub(super) const fn rank_bb_of(square: Square) -> Bitboard {
     rank_bb(square::rank_of(square))
 }
 
+#[inline]
 pub(super) const fn file_bb_of(square: Square) -> Bitboard {
     0x101010101010101 << square::file_of(square)
 }
 
+#[inline]
 pub(crate) const fn diagonal_bb(square: Square) -> Bitboard {
     const MAIN_DIAGONAL: Bitboard = 0x8040201008040201;
     let distance = (square::rank_of(square) as i32) - (square::file_of(square) as i32);
     shl(MAIN_DIAGONAL, distance * 8)
 }
 
+#[inline]
 pub(crate) const fn antidiagonal_bb(square: Square) -> Bitboard {
     const MAIN_DIAGONAL: Bitboard = 0x102040810204080;
     let distance = (square::rank_of(square) as i32) + (square::file_of(square) as i32) - 7;
     shl(MAIN_DIAGONAL, distance * 8)
 }
 
+#[inline]
 pub fn pop_bb(bitboard: &mut Bitboard) -> Bitboard {
     let val = *bitboard;
     *bitboard &= *bitboard - 1;
     *bitboard ^ val
 }
 
+#[inline]
 pub(super) const fn popcount(bitboard: Bitboard) -> u8 {
     bitboard.count_ones() as u8
 }
 
+#[inline]
 pub(super) const fn lsb(bitboard: Bitboard) -> Square {
     assert!(bitboard != 0);
     bitboard.trailing_zeros() as Square
 }
 
+#[inline]
 pub fn pop_lsb(bitboard: &mut Bitboard) -> Square {
     let lsb = lsb(*bitboard);
     *bitboard &= *bitboard - 1;
     lsb
 }
 
+#[inline]
 pub(super) const fn is_set(bitboard: Bitboard, square: Square) -> bool {
     (bitboard >> square) & 1 != 0
 }
 
+#[inline]
 pub(super) fn set_bit(bitboard: &mut Bitboard, square: Square) {
     *bitboard |= new_bb(square)
 }
 
+#[inline]
 pub(super) fn clear_bit(bitboard: &mut Bitboard, square: Square) {
     *bitboard &= !new_bb(square)
 }
 
 // left shift for integer values. Right shift if it is negative. Wrapping.
+#[inline]
 const fn shl(value: Bitboard, shift_amount: i32) -> Bitboard {
     if shift_amount >= 0 {
         value << (shift_amount as u32)
@@ -85,6 +99,7 @@ pub(crate) enum Direction {
     SW,
 }
 
+#[inline]
 pub(crate) fn shift(bitboard: Bitboard, direction: Direction) -> Bitboard {
     const A_FILE: Bitboard = file_bb_of(square::A1 as Square);
     const H_FILE: Bitboard = file_bb_of(square::H1 as Square);
@@ -100,6 +115,7 @@ pub(crate) fn shift(bitboard: Bitboard, direction: Direction) -> Bitboard {
     }
 }
 
+#[inline]
 pub(crate) fn forward(bitboard: Bitboard, color: Color) -> Bitboard {
     const ROTATE_OFFSET: [i8; 2] = [8, -8];
     let rotate_by = (64 + ROTATE_OFFSET[color as usize]) as u32;
