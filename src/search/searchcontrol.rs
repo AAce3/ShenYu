@@ -37,12 +37,12 @@ impl Searcher {
         let beta = CHECKMATE;
         loop {
             depth += 1;
-            if depth >= MAX_DEPTH as u8 {
+            if depth >= MAX_DEPTH as i16 {
                 break;
             }
 
             pv.clear();
-            let score = self.alphabeta::<true>(depth, 0, alpha, beta, &mut pv);
+            let score = self.alphabeta::<true>(depth , 0, alpha, beta, &mut pv);
 
             
             if self.timer.stopped {
@@ -78,9 +78,10 @@ impl Searcher {
                 elapsed,
                 format_pv(&pv)
             );
+            
             best_move = pv[0];
-            if depth >= self.timer.max_depth
-                || elapsed * 3 > self.timer.time_alloted
+            if depth as u8 >= self.timer.max_depth
+                || elapsed * 2 > self.timer.time_alloted
             {
                 break;
             }
@@ -95,7 +96,7 @@ impl Searcher {
             nodecount: 0,
             qnodecount: 0,
             timer: Timer::default(),
-            tt: TranspositionTable::new(256),
+            tt: TranspositionTable::new(32),
             stop: recv,
             board: Board::new(),
             ord: OrderData::new(),
@@ -130,7 +131,7 @@ impl Searcher {
     }
 }
 
-fn format_pv(pv: &PVLine) -> String {
+pub fn format_pv(pv: &PVLine) -> String {
     let mut starting_str = String::new();
     for action in pv.iter() {
         write!(&mut starting_str, " {}", action).unwrap();
