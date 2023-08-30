@@ -69,6 +69,7 @@ impl fmt::Display for Board {
 
         writeln!(f, "|[    En Passant Square: {ep_str}")?;
         writeln!(f, "|[    Halfmove Clock: {}", self.halfmove_clock())?;
+        writeln!(f, "|[    Zobrist Key: {}", self.zobrist())?;
         f.write_str("|[====---------------------====]|")?;
         Ok(())
     }
