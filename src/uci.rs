@@ -85,8 +85,8 @@ pub fn gameloop() {
 fn identify() {
     println!("id name ShenYu {VERSION}");
     println!("id author Aaron Li");
-    println!("option name Hash type spin default 32 min 0 max 65536");
-    println!("option name hash type spin default 32 min 0 max 65536");
+    println!("option name Hash type spin default 64 min 0 max 65536");
+    println!("option name hash type spin default 64 min 0 max 65536");
 
     println!("option name Clear Hash type button");
     println!("option name clear hash type button");
