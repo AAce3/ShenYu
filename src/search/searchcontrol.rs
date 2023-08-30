@@ -81,7 +81,7 @@ impl Searcher {
             
             best_move = pv[0];
             if depth as u8 >= self.timer.max_depth
-                || elapsed * 2 > self.timer.time_alloted
+                || elapsed > self.timer.time_alloted
             {
                 break;
             }
