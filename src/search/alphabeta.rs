@@ -112,13 +112,7 @@ impl Searcher {
         }
 
         let eval = self.board.evaluate();
-        /*
-                // static null move pruning
-                const STATIC_NMP_MARGIN: i16 = 100;
-                if !in_check && !is_pv && eval - (depth as i16 * STATIC_NMP_MARGIN) >= beta {
-                    return beta;
-                }
-        */
+
         // Null move pruning
         if !in_check && !is_pv && eval >= beta && !IS_ROOT && !self.board.is_kp() {
             self.board.make_nullmove();
@@ -142,18 +136,7 @@ impl Searcher {
                 return beta;
             }
         }
-        /*
-                const FUTILITY_MULTIPLIIER: i16 = 80;
 
-                // check if futility pruning is possible
-                // Do futility pruning if eval + a large margin
-
-                let can_futility_prune = !is_mate(alpha)
-                    && !is_mate(beta)
-                    && !in_check
-                    && !is_pv
-                    && eval + (depth as i16 * FUTILITY_MULTIPLIIER) < alpha;
-        */
         let mut best_pvline = PVLine::new();
         let mut best_score = -CHECKMATE;
 
@@ -163,15 +146,6 @@ impl Searcher {
 
         let mut generator = StagedGenerator::new(best_move, ply);
         while let Some((action, stage)) = generator.next_move(&self.ord, &mut self.board) {
-            /*
-            // futility prune
-            if num_moves >= 1
-                && can_futility_prune
-                && (stage == Stage::Quiets || stage == Stage::Killers)
-            {
-                continue;
-            }*/
-
             self.board.make_move(action);
             if stage == Stage::HashMove || stage == Stage::Killers {
                 // make sure that it isn't an illegal move
@@ -192,7 +166,7 @@ impl Searcher {
             } else {
                 // Try to reduce
                 let can_lmr =
-                    !is_pv&& !in_check && (stage == Stage::Quiets || stage == Stage::Killers) ;
+                    !is_pv && !in_check && (stage == Stage::Quiets || stage == Stage::Killers);
                 let reduction = if can_lmr { 2 } else { 0 };
 
                 score = -self.alphabeta::<false>(
