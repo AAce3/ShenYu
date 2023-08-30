@@ -37,7 +37,6 @@ macro_rules! new_bbs {
 impl Board {
     // used to check if TT move or killers is pseudolegal. Legality check will be done later
     pub fn is_pseudolegal(&mut self, action: Action) -> bool {
-        let mut movelist = MoveList::new();
         let us = self.active_color();
         let them = !us;
         match action.move_type() {
@@ -58,6 +57,10 @@ impl Board {
 
                 match moving_piece {
                     Piece::P => {
+                        if square::rank_of(action.to()) == 0 || square::rank_of(action.to()) == 7 {
+                            return false;
+                        }
+
                         let forward_bb = bitboard::forward(bitboard::new_bb(action.from()), us);
 
                         if self.is_color(action.to(), them) {
@@ -117,23 +120,27 @@ impl Board {
             // castles, promotions and passants are all super rare. So, to test for legality, just generate the moves
             // as a cheap and dirty alternative to doing annoying piece checking
             MoveType::Castle => {
+                let mut movelist = MoveList::new();
+
                 if action.pr_piece() != Piece::N {
                     return false;
                 }
 
                 if self.get_piece(action.from()) == Piece::K {
-                    self.generate_castles(
-                        self.generate_atk_mask(
-                            them,
-                            self.occupancy() ^ self.piece_bb(Piece::K, us),
-                        ),
-                        &mut movelist,
-                    );
+                    let king_bb = self.piece_bb(Piece::K, us);
+                    let atk_mask = self.generate_atk_mask(them, self.occupancy() ^ king_bb);
+
+                    if atk_mask & king_bb != 0 {
+                        return false;
+                    }
+                    self.generate_castles(atk_mask, &mut movelist);
                     return movelist.iter().any(|&a| *a == action);
                 }
             }
 
             MoveType::Promotion => {
+                let mut movelist = MoveList::new();
+
                 let eighth_rank = select!(us, 7, 0);
                 if self.get_piece(action.from()) == Piece::P
                     && square::rank_of(action.to()) == eighth_rank
@@ -156,6 +163,8 @@ impl Board {
                 }
             }
             MoveType::Passant => {
+                let mut movelist = MoveList::new();
+
                 if action.pr_piece() != Piece::N {
                     return false;
                 }
