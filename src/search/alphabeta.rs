@@ -88,7 +88,9 @@ impl Searcher {
 
             // if we can use the score, then return that.
             if !IS_ROOT && tt_data.get_depth() as i16 >= depth && shoulduse {
-                pvline.push(best_move);
+                if best_move != Action::default() {
+                    pvline.push(best_move);
+                }
                 // transpositions that have a mate score should be handled differently
                 if is_mate(score) {
                     if score.is_positive() {
@@ -137,6 +139,14 @@ impl Searcher {
             }
         }
 
+        const FUTILITY_MARGIN: i16 = 300;
+        let can_futility = depth == 1
+            && !is_pv
+            && !in_check
+            && !is_mate(alpha)
+            && !is_mate(beta)
+            && eval + FUTILITY_MARGIN < alpha;
+
         let mut best_pvline = PVLine::new();
         let mut best_score = -CHECKMATE;
 
@@ -146,6 +156,21 @@ impl Searcher {
 
         let mut generator = StagedGenerator::new(best_move, ply);
         while let Some((action, stage)) = generator.next_move(&self.ord, &mut self.board) {
+            let lmp_margin = (depth + 1) * 4;
+            if num_moves != 0
+                && depth < 5
+                && !in_check
+                && num_moves >= lmp_margin
+                && (stage == Stage::Quiets)
+            {
+                continue;
+            }
+
+            // try to prune futile moves
+            if num_moves != 0 && can_futility && (stage == Stage::Quiets) {
+                continue;
+            }
+
             self.board.make_move(action);
             if stage == Stage::HashMove || stage == Stage::Killers {
                 // make sure that it isn't an illegal move
@@ -157,16 +182,21 @@ impl Searcher {
 
             let mut new_pv_line = PVLine::new();
             new_pv_line.push(action);
+            num_moves += 1;
+
             let mut score: i16;
 
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
-            if is_pv && num_moves == 0 {
+            if is_pv && num_moves == 1 {
                 score =
                     -self.alphabeta::<false>(depth - 1, ply + 1, -beta, -alpha, &mut new_pv_line);
             } else {
+                // Try to prune late moves.
+
                 // Try to reduce
                 let can_lmr =
-                    !is_pv && !in_check && (stage == Stage::Quiets || stage == Stage::Killers);
+                    !is_pv && !in_check && num_moves >= 4 && (stage == Stage::Quiets) && depth >= 3;
+
                 let reduction = if can_lmr { 2 } else { 0 };
 
                 score = -self.alphabeta::<false>(
@@ -190,7 +220,7 @@ impl Searcher {
                     );
                 }
             }
-            num_moves += 1;
+
             self.board.unmake_move(action);
 
             if self.timer.stopped {
@@ -205,6 +235,7 @@ impl Searcher {
                     raised_alpha = true;
                     alpha = score;
                 }
+
                 if score >= beta {
                     unsafe {
                         tt_entry.as_mut().unwrap().store(
@@ -235,7 +266,16 @@ impl Searcher {
             }
         }
 
-        let nodetype = if raised_alpha { EXACT } else { ALPHA };
+        // nodetype for mate/stalemate
+        let mut nodetype = if raised_alpha { EXACT } else { ALPHA };
+
+        if best_score > alpha {
+            nodetype = ALPHA;
+            if best_score >= beta {
+                nodetype = BETA;
+            }
+        }
+
         if !stored_move {
             unsafe {
                 tt_entry.as_mut().unwrap().store(
