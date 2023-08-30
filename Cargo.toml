@@ -10,6 +10,7 @@ anyhow = "1.0.70"
 static_init = "1.0.3"
 rand = "0.8.5"
 crossbeam = "0.8.2"
+chrono = "0.4.26"
 
 [profile.dev]
 overflow-checks = false
