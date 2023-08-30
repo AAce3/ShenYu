@@ -1,7 +1,11 @@
 use crossbeam::channel::TryRecvError;
 
 use crate::{
-    movegen::{action::Action, movelist::List},
+    movegen::{
+        action::Action,
+        genmoves::GenType,
+        movelist::{List, MoveList},
+    },
     search::{
         moveorder::{QSearchGenerator, Stage, StagedGenerator},
         searchcontrol::PVLine,
@@ -14,18 +18,27 @@ use super::{
 };
 
 pub const MAX_DEPTH: usize = 64;
-
 impl Searcher {
     pub fn alphabeta<const IS_ROOT: bool>(
         &mut self,
-        mut depth: u8,
+        mut depth: i16,
         ply: u16,
         mut alpha: i16,
         beta: i16,
         pvline: &mut List<Action, 64>,
     ) -> i16 {
         let count = if IS_ROOT { 2 } else { 1 };
+
         if depth > 1 && (self.board.is_draw() || self.board.is_repetition(count)) {
+            if IS_ROOT {
+                let mut movelist = MoveList::new();
+                self.board.genmoves::<{ GenType::ALL }>(&mut movelist);
+                if movelist.len() == 0 {
+                    panic!("No legal moves!")
+                } else {
+                    pvline.push(*movelist[0])
+                }
+            }
             return 0;
         }
 
@@ -34,8 +47,7 @@ impl Searcher {
             self.timer.stopped = true;
         }
 
-        let check_for_stop = self.nodecount % 4096 == 0;
-        if check_for_stop {
+        if check_for_stop(self.nodecount) {
             let has_msg = match self.stop.try_recv() {
                 Ok(value) => value,
                 Err(TryRecvError::Empty) => false,
@@ -44,7 +56,7 @@ impl Searcher {
             self.timer.stopped |= has_msg;
         }
 
-        if self.timer.is_timed && check_for_stop {
+        if self.timer.is_timed && check_for_stop(self.nodecount) {
             self.timer.stopped |= self.timer.check_time();
         }
 
@@ -55,16 +67,6 @@ impl Searcher {
         let in_check = self.board.in_check(self.board.active_color());
         if in_check {
             depth += 1;
-        }
-
-        if depth == 0 {
-            self.nodecount -= 1;
-            let qvalue = self.quiesce(0, alpha, beta);
-            if self.timer.stopped {
-                return 0;
-            } else {
-                return qvalue;
-            }
         }
 
         let mut best_move = Action::default();
@@ -85,8 +87,10 @@ impl Searcher {
             };
 
             // if we can use the score, then return that.
-            if !IS_ROOT && tt_data.get_depth() >= depth && shoulduse {
-                if mated_in(score) < MAX_DEPTH as i16 && mated_in(score) > -(MAX_DEPTH as i16) {
+            if !IS_ROOT && tt_data.get_depth() as i16 >= depth && shoulduse {
+                pvline.push(best_move);
+                // transpositions that have a mate score should be handled differently
+                if is_mate(score) {
                     if score.is_positive() {
                         return score - (ply as i16);
                     } else {
@@ -97,19 +101,37 @@ impl Searcher {
             }
         }
 
+        if depth <= 0 {
+            self.nodecount -= 1;
+            let qvalue = self.quiesce(0, alpha, beta);
+            if self.timer.stopped {
+                return 0;
+            } else {
+                return qvalue;
+            }
+        }
+
         let eval = self.board.evaluate();
-        // null move pruning
-        if !in_check && eval >= beta && depth >= 4 && !self.board.is_kp() {
+        /*
+                // static null move pruning
+                const STATIC_NMP_MARGIN: i16 = 100;
+                if !in_check && !is_pv && eval - (depth as i16 * STATIC_NMP_MARGIN) >= beta {
+                    return beta;
+                }
+        */
+        // Null move pruning
+        if !in_check && !is_pv && eval >= beta && !IS_ROOT && !self.board.is_kp() {
             self.board.make_nullmove();
-            let reduction = 3;
+            let reduction = 3 + depth / 6;
             let mut new_pvline = PVLine::new();
-            let score = self.alphabeta::<false>(
+            let score = -self.alphabeta::<false>(
                 depth - 1 - reduction,
                 ply + 1,
                 -beta,
                 -beta + 1,
                 &mut new_pvline,
             );
+
             self.board.unmake_nullmove();
 
             if self.timer.stopped {
@@ -120,7 +142,18 @@ impl Searcher {
                 return beta;
             }
         }
+        /*
+                const FUTILITY_MULTIPLIIER: i16 = 80;
 
+                // check if futility pruning is possible
+                // Do futility pruning if eval + a large margin
+
+                let can_futility_prune = !is_mate(alpha)
+                    && !is_mate(beta)
+                    && !in_check
+                    && !is_pv
+                    && eval + (depth as i16 * FUTILITY_MULTIPLIIER) < alpha;
+        */
         let mut best_pvline = PVLine::new();
         let mut best_score = -CHECKMATE;
 
@@ -130,6 +163,15 @@ impl Searcher {
 
         let mut generator = StagedGenerator::new(best_move, ply);
         while let Some((action, stage)) = generator.next_move(&self.ord, &mut self.board) {
+            /*
+            // futility prune
+            if num_moves >= 1
+                && can_futility_prune
+                && (stage == Stage::Quiets || stage == Stage::Killers)
+            {
+                continue;
+            }*/
+
             self.board.make_move(action);
             if stage == Stage::HashMove || stage == Stage::Killers {
                 // make sure that it isn't an illegal move
@@ -142,26 +184,26 @@ impl Searcher {
             let mut new_pv_line = PVLine::new();
             new_pv_line.push(action);
             let mut score: i16;
+
             // Search with a full window if we are in a pv node and this is the first move, or the depth is low
-            if (is_pv && num_moves == 0) || (depth <= 3) {
+            if is_pv && num_moves == 0 {
                 score =
                     -self.alphabeta::<false>(depth - 1, ply + 1, -beta, -alpha, &mut new_pv_line);
             } else {
-                let new_depth = if stage == Stage::Quiets || stage == Stage::Killers {
-                    depth - 1
-                } else {
-                    depth
-                };
-                // Otherwise, search with a null window with less depth to maximize cutoffs
+                // Try to reduce
+                let can_lmr =
+                    !is_pv&& !in_check && (stage == Stage::Quiets || stage == Stage::Killers) ;
+                let reduction = if can_lmr { 2 } else { 0 };
+
                 score = -self.alphabeta::<false>(
-                    depth - 1,
+                    depth - reduction - 1,
                     ply + 1,
                     -alpha - 1,
                     -alpha,
                     &mut new_pv_line,
                 );
 
-                if score >= alpha && score < beta {
+                if score > alpha {
                     new_pv_line.clear();
                     new_pv_line.push(action);
                     // If the score is within the bounds then we have to do a full window re-search to get the true score
@@ -191,20 +233,31 @@ impl Searcher {
                 }
                 if score >= beta {
                     unsafe {
-                        tt_entry
-                            .as_mut()
-                            .unwrap()
-                            .store(zobrist_key, action, score, depth, BETA);
+                        tt_entry.as_mut().unwrap().store(
+                            zobrist_key,
+                            action,
+                            score,
+                            depth as u8,
+                            BETA,
+                        );
                     }
 
                     if stage == Stage::Quiets || stage == Stage::Killers {
-                        self.ord.update_history(action, depth, &self.board);
+                        self.ord.update_history(action, depth as u8, &self.board);
                         self.ord.update_killer(action, ply);
                     }
                     stored_move = true;
 
                     break;
                 }
+            }
+        }
+
+        if num_moves == 0 {
+            if in_check {
+                best_score = mate_score(ply, 0);
+            } else {
+                best_score = 0;
             }
         }
 
@@ -215,17 +268,9 @@ impl Searcher {
                     zobrist_key,
                     best_move,
                     best_score,
-                    depth,
+                    depth as u8,
                     nodetype,
                 );
-            }
-        }
-
-        if num_moves == 0 {
-            if in_check {
-                return mate_score(ply, 0);
-            } else {
-                return 0;
             }
         }
 
@@ -243,8 +288,7 @@ impl Searcher {
             self.timer.stopped = true;
         }
 
-        let check_for_stop = self.nodecount % 4096 == 0;
-        if check_for_stop {
+        if check_for_stop(self.nodecount) {
             let has_msg = match self.stop.try_recv() {
                 Ok(value) => value,
                 Err(TryRecvError::Empty) => false,
@@ -253,7 +297,7 @@ impl Searcher {
             self.timer.stopped |= has_msg;
         }
 
-        if self.timer.is_timed && check_for_stop {
+        if self.timer.is_timed && check_for_stop(self.nodecount) {
             self.timer.stopped |= self.timer.check_time()
         }
 
@@ -268,10 +312,6 @@ impl Searcher {
 
         if bestscore > alpha {
             alpha = bestscore;
-        }
-
-        if ply >= 6 {
-            return alpha;
         }
 
         let captures = QSearchGenerator::new(&mut self.board);
@@ -294,6 +334,15 @@ impl Searcher {
         }
         alpha
     }
+}
+
+const fn check_for_stop(nodecount: u64) -> bool {
+    const CHECK_TIME: u64 = 4096;
+    nodecount % CHECK_TIME == 0
+}
+
+const fn is_mate(score: i16) -> bool {
+    mated_in(score) < MAX_DEPTH as i16 && mated_in(score) > -(MAX_DEPTH as i16)
 }
 
 pub(super) const fn mate_score(ply: u16, starting_ply: u8) -> i16 {
