@@ -49,14 +49,11 @@ impl StagedGenerator {
             match self.stage {
                 Stage::HashMove => {
                     self.stage = Stage::GenCaptures;
-                    if self.ttmove == Action::default() {
+                    if self.ttmove == Action::default() || !board.is_pseudolegal(self.ttmove) {
                         continue;
                     }
-                    if board.is_pseudolegal(self.ttmove) {
-                        return Some((self.ttmove, Stage::HashMove));
-                    } else {
-                        continue; // next stage
-                    }
+
+                    return Some((self.ttmove, Stage::HashMove));
                 }
                 Stage::GenCaptures => {
                     board.genmoves::<{ GenType::CAPTURES }>(&mut self.movelist);
