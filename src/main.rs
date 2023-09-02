@@ -1,4 +1,4 @@
-use uci::gameloop;
+use uci::{gameloop, VERSION};
 
 mod eval;
 mod movegen;
@@ -24,6 +24,6 @@ fn main() {
        :.-%@@@@@@@@@@+     
 "
     );
-    println!("ShenYu v2.0.0 by Aaron Li");
+    println!("ShenYu v{VERSION} by Aaron Li");
     gameloop();
 }

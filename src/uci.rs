@@ -9,7 +9,7 @@ use crate::{
     search::{searchcontrol::Searcher, timer::Timer},
 };
 
-const VERSION: &str = "2.0.0";
+pub const VERSION: &str = "2.0.1";
 
 impl Board {
     pub fn parse_moves<'a, T>(&mut self, actions: T) -> Option<()>
