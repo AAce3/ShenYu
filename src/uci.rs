@@ -86,11 +86,7 @@ fn identify() {
     println!("id name ShenYu {VERSION}");
     println!("id author Aaron Li");
     println!("option name Hash type spin default 64 min 0 max 65536");
-    println!("option name hash type spin default 64 min 0 max 65536");
-
     println!("option name Clear Hash type button");
-    println!("option name clear hash type button");
-
     println!("uciok");
 }
 
@@ -106,7 +102,11 @@ where
     let option_type = string_iter.next().unwrap_or_default();
     match option_type {
         "Hash" | "hash" => {
-            let next = string_iter.next().unwrap();
+            let mut next = string_iter.next().unwrap();
+            if next != "value" {
+                return;
+            }
+            next = string_iter.next().unwrap();
             if let Ok(size) = str::parse::<usize>(next) {
                 searchdata.hash_resize(size);
             }
