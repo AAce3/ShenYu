@@ -30,20 +30,14 @@ and many others.
   - History heuristic
   - Quiescience Search
   - SEE pruning in quiescience search
+  - Null Move Pruning (2.0.0+)
+  - Late Move Reductions (2.0.0+)
+  - Futility Pruning (2.0.0+)
 ## Building and Compiling
 Shen Yu only comes with binaries for windows and linux. To compile, install [Rust](https://www.rust-lang.org/tools/install) and clone the repository.
-Then, in your terminal, run
-```
-rustup toolchain install nightly
-```
-to download the "nightly" version of the compiler. Then,
-```
-rustup default nightly
-```
-to set the compiler to use 'nightly.'
 Navigate to the project, and use
 ```
 cargo build --release
 ```
 to generate a compiled binary.
-In the 'target' folder, a folder named 'release' should show up. The executable can be found in that folder, titled "shenyu"
+In the 'target' folder, a folder named 'release' should show up. The executable can be found in that folder, titled "ShenYu"
