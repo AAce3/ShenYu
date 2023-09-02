@@ -33,6 +33,7 @@ and many others.
   - Null Move Pruning (2.0.0+)
   - Late Move Reductions (2.0.0+)
   - Futility Pruning (2.0.0+)
+  - Late Move Pruning (2.0.0+)
 ## Building and Compiling
 Shen Yu only comes with binaries for windows and linux. To compile, install [Rust](https://www.rust-lang.org/tools/install) and clone the repository.
 Navigate to the project, and use
